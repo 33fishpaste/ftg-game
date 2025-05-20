@@ -280,27 +280,11 @@ function startBattle() {
 }
 
 function setRandomSettings(playerId) {
-    const characterOptions = ['サナギ体',
-'アラクネアワーム',
-'ベルバーワーム',
-'フォルミカアルビュスワーム',
-'ジオフィリドワーム',
-'アキャリナワーム',
-'ランピリスワーム',
-'コキリアワーム',
-'エピラクナワーム',
-'キャマラスワーム',
-'ジェノミアスワーム',
-'ミュスカワーム',
-'ビエラワーム',
-'プレクスワーム',
-'レプトーフィスワーム',
-'グリラスワーム',
-'カッシスワーム',
-'シシーラワーム',
-'フォリアタスワーム',
-'コレオプテラワーム',
-'ベルクリネタスワーム'];
+    const characterOptions = [
+        'キャラクター1',
+        'キャラクター2',
+        'キャラクター3'
+    ];
     const genderOptions = ['雄', '雌'];
     const typeOptions = [
         '好戦的で戦闘狂',
@@ -394,6 +378,12 @@ function loadBattleNames() {
 
 loadBattleNames();
 
+function flattenTech(data) {
+    const result = {};
+    Object.values(data).forEach(g => Object.assign(result, g));
+    return result;
+}
+
 function populateTechList() {
     const tbody = document.getElementById('techTableBody');
     if (!tbody) return;
@@ -404,4 +394,6 @@ function populateTechList() {
     });
 }
 
-fetch("techniques.json").then(r=>r.json()).then(d=>{TECHNIQUES=d;populateTechList();});
+fetch("techniques.json")
+  .then(r => r.json())
+  .then(d => { TECHNIQUES = flattenTech(d); populateTechList(); });
