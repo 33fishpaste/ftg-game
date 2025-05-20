@@ -134,3 +134,22 @@ img {
 #returnButton {
     margin-top: 10px;
 }
+
+.technique-list {
+    margin-top: 20px;
+}
+
+.technique-list table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.technique-list th,
+.technique-list td {
+    border: 1px solid #ccc;
+    padding: 4px;
+}
+
+.technique-list th {
+    background: #eee;
+}
