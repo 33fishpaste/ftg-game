@@ -1,221 +1,160 @@
-        class BattleSystem {
-            constructor() {
-                this.normalTargets = ['頭部', '首', '腕', '胸部', '腹部', '腿'];
-                this.normalAttacks = ['特技1', '特技2', '蹴り', '殴り'];
-                this.followupTargets = ['頭部'];
-                this.followupAttacks = ['特技1', '特技2', '組み技'];
-                this.finishTargets = ['頭部', '頭部'];
-                this.finishAttacks = ['関節技', '恥辱技', 'ゴア技'];
-				this.followupCombos = [
-    { target: '首', attack: '関節技' },
-    { target: '腿', attack: '関節技' },
-    { target: '腕', attack: '関節技' },
-    { target: '頭部', attack: '膝圧迫技' },
-    { target: '頭部', attack: '手技' },
-    { target: '頭部', attack: '特技1' },
-    { target: '頭部', attack: '特技2' }
-];
+class PlayerState {
+    constructor(name) {
+        this.name = name;
+        this.hp = 100;
+        this.command = null;
+        this.sidestep_cd = 0;
+        this.sidestep_streak = 0;
+        this.hold_counter_cd = 0;
+        this.trauma = 0;
+        this.last_command = null;
+    }
+}
 
-this.finishCombos = [
-    { target: '頭部', attack: '恥辱技(手技)' },
-    { target: '頭部', attack: 'ゴア技(膝圧迫技)' }
-];
-                this.logCounter = 1;
-                this.rounds = {p1: 0, p2: 0};
-                this.previousSecondHitFailed = {
-                    p1: false,
-                    p2: false
-                };
-                this.p1Name = '';
-                this.p2Name = '';
-            }
+const Commands = {
+    GRAB: 'Grab',
+    HOLD: 'Hold',
+    SIDESTEP: 'Sidestep',
+    HOLD_COUNTER: 'Hold Counter',
+    GUARD: 'Guard'
+};
 
-            getRandomItem(array, excludeItems = []) {
-                let availableItems = array.filter(item => !excludeItems.includes(item));
-                return availableItems[Math.floor(Math.random() * availableItems.length)];
-            }
+const COMMAND_LIST = Object.values(Commands);
 
-            getRandomItems(array, count, excludeItems = []) {
-                let result = [];
-                let available = [...array];
-                for (let i = 0; i < count; i++) {
-                    let index = Math.floor(Math.random() * available.length);
-                    let item = available.splice(index, 1)[0];
-                    if (!excludeItems.includes(item)) {
-                        result.push(item);
-                    }
-                }
-                return result;
-            }
+class BattleSystem {
+    constructor() {
+        this.logCounter = 1;
+    }
 
-            addLog(message) {
-                let logElement = document.getElementById('battleLog');
-                let formattedMessage = `${String(this.logCounter).padStart(2, '0')}: ${message}\n`;
-                logElement.value += formattedMessage;
-                logElement.scrollTop = logElement.scrollHeight;
-                this.logCounter++;
-            }
+    addLog(message) {
+        const logElement = document.getElementById('battleLog');
+        const formatted = `${String(this.logCounter).padStart(2,'0')}: ${message}\n`;
+        logElement.value += formatted;
+        logElement.scrollTop = logElement.scrollHeight;
+        this.logCounter++;
+    }
 
-            async startBattle() {
-                const p1Input = document.getElementById('player1Name');
-                const p2Input = document.getElementById('player2Name');
-                const p1Name = p1Input ? p1Input.value : (localStorage.getItem('p1Name') || 'Player 1');
-                const p2Name = p2Input ? p2Input.value : (localStorage.getItem('p2Name') || 'Player 2');
+    getAvailableCommands(player) {
+        let cmds = [...COMMAND_LIST];
+        if (player.sidestep_cd > 0) cmds = cmds.filter(c => c !== Commands.SIDESTEP);
+        if (player.hold_counter_cd > 0) cmds = cmds.filter(c => c !== Commands.HOLD_COUNTER);
+        if (player.trauma > 0) cmds = cmds.filter(c => c !== Commands.HOLD);
+        return cmds;
+    }
 
-                // Store names for later use so battle.html doesn't need the inputs
-                this.p1Name = p1Name;
-                this.p2Name = p2Name;
+    chooseCommand(player) {
+        const choices = this.getAvailableCommands(player);
+        return choices[Math.floor(Math.random() * choices.length)];
+    }
 
-                const span1 = document.getElementById('battlePlayer1');
-                const span2 = document.getElementById('battlePlayer2');
-                if (span1) span1.textContent = p1Name;
-                if (span2) span2.textContent = p2Name;
-                
-                document.getElementById('battleLog').value = '';
-                this.logCounter = 1;
-                this.rounds = {p1: 0, p2: 0};
+    outcome(cmdA, cmdB) {
+        if (cmdA === cmdB) return 'tie';
+        const matrix = {
+            [Commands.GRAB]:      { [Commands.GUARD]: 'win', [Commands.HOLD]: 'lose', [Commands.SIDESTEP]: 'lose', [Commands.HOLD_COUNTER]: 'win' },
+            [Commands.HOLD]:      { [Commands.GRAB]: 'win', [Commands.GUARD]: 'win', [Commands.SIDESTEP]: 'lose', [Commands.HOLD_COUNTER]: 'lose' },
+            [Commands.SIDESTEP]:  { [Commands.GRAB]: 'win', [Commands.HOLD]: 'win', [Commands.HOLD_COUNTER]: 'win', [Commands.GUARD]: 'lose' },
+            [Commands.HOLD_COUNTER]: { [Commands.HOLD]: 'win', [Commands.GRAB]: 'lose', [Commands.SIDESTEP]: 'lose', [Commands.GUARD]: 'lose' },
+            [Commands.GUARD]:     { [Commands.SIDESTEP]: 'win', [Commands.HOLD_COUNTER]: 'win', [Commands.GRAB]: 'lose', [Commands.HOLD]: 'lose' }
+        };
+        return (matrix[cmdA] && matrix[cmdA][cmdB]) || 'tie';
+    }
 
-                while (this.rounds.p1 < 2 && this.rounds.p2 < 2) {
-                    await this.executePreparePhase(p1Name, p2Name);
-                }
-            }
+    reduceTrauma(player) {
+        if (player.trauma > 0) {
+            player.trauma = Math.max(player.trauma - 1, 0);
+        }
+    }
 
-            async executePreparePhase(p1Name, p2Name) {
-                // P1の準備
-                let p1Target = this.getRandomItem(this.normalTargets);
-                let p1Attacks = this.getRandomItems(this.normalAttacks, 2);
-                let p2Guards = this.getRandomItems(this.normalTargets, 2);
-                let p2GuardAttacks1 = this.getRandomItems(this.normalAttacks, 2);
-                let p2GuardAttacks2 = this.getRandomItems(this.normalAttacks, 2);
+    updateCooldowns(player) {
+        if (player.command === Commands.SIDESTEP) {
+            player.sidestep_streak++;
+            player.sidestep_cd = player.sidestep_streak;
+        } else {
+            player.sidestep_streak = 0;
+        }
+        if (player.command === Commands.HOLD_COUNTER) {
+            player.hold_counter_cd = 1;
+        }
+        player.sidestep_cd = Math.max(player.sidestep_cd - 1, 0);
+        player.hold_counter_cd = Math.max(player.hold_counter_cd - 1, 0);
+        player.last_command = player.command;
+        player.command = null;
+    }
 
-                //this.addLog(`${p1Name} 狙う部位：${p1Target} 攻撃方法：1回目${p1Attacks[0]}、2回目${p1Attacks[1]} / ${p2Name} 警戒部位：[${p2Guards.join('、')}] 警戒攻撃方法：1回目[${p2GuardAttacks1.join('、')}] 2回目[${p2GuardAttacks2.join('、')}]`);
+    async startBattle() {
+        const p1Input = document.getElementById('player1Name');
+        const p2Input = document.getElementById('player2Name');
+        const p1Name = p1Input ? p1Input.value : (localStorage.getItem('p1Name') || 'Player 1');
+        const p2Name = p2Input ? p2Input.value : (localStorage.getItem('p2Name') || 'Player 2');
 
-                // P2の準備
-                let p2Target = this.getRandomItem(this.normalTargets);
-                let p2Attacks = this.getRandomItems(this.normalAttacks, 2);
-                let p1Guards = this.getRandomItems(this.normalTargets, 2);
-                let p1GuardAttacks1 = this.getRandomItems(this.normalAttacks, 2);
-                let p1GuardAttacks2 = this.getRandomItems(this.normalAttacks, 2);
+        const span1 = document.getElementById('battlePlayer1');
+        const span2 = document.getElementById('battlePlayer2');
+        if (span1) span1.textContent = p1Name;
+        if (span2) span2.textContent = p2Name;
 
-                //this.addLog(`${p2Name} 狙う部位：${p2Target} 攻撃方法：1回目${p2Attacks[0]}、2回目${p2Attacks[1]} / ${p1Name} 警戒部位：[${p1Guards.join('、')}] 警戒攻撃方法：1回目[${p1GuardAttacks1.join('、')}] 2回目[${p1GuardAttacks2.join('、')}]`);
+        document.getElementById('battleLog').value = '';
+        this.logCounter = 1;
 
-                // 攻撃判定
-                let p1Success = this.calculateAttackSuccess(p1Target, p1Attacks, p2Guards, p2GuardAttacks1, p2GuardAttacks2);
-                let p2Success = this.calculateAttackSuccess(p2Target, p2Attacks, p1Guards, p1GuardAttacks1, p1GuardAttacks2);
+        const p1 = new PlayerState(p1Name);
+        const p2 = new PlayerState(p2Name);
 
-                if (p1Success > p2Success) {
-                    await this.executeAttackPhase(p1Name, p2Name, p1Target, p1Attacks, p2Guards, p2GuardAttacks1, p2GuardAttacks2);
-                } else if (p2Success > p1Success) {
-                    await this.executeAttackPhase(p2Name, p1Name, p2Target, p2Attacks, p1Guards, p1GuardAttacks1, p1GuardAttacks2);
-                } else {
-                    //this.addLog(`${p1Name}と${p2Name}は睨み合っている...`);
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-            }
+        this.addLog(`${p1.name}と${p2.name}の戦闘開始`);
 
-            calculateAttackSuccess(attackTarget, attacks, guardTargets, guardAttacks1, guardAttacks2) {
-                let success = 0;
-                if (!guardTargets.includes(attackTarget)) {
-                    if (!guardAttacks1.includes(attacks[0])) {
-                        success++;
-                        if (!guardAttacks2.includes(attacks[1])) {
-                            success++;
-                        }
-                    }
-                }
-                return success;
-            }
-
-            async executeAttackPhase(attackerName, defenderName, target, attacks, guardTargets, guardAttacks1, guardAttacks2) {
-                // Determine attacker side based on stored names to avoid relying on input elements
-                const currentP1Name = this.p1Name || localStorage.getItem('p1Name') || 'Player 1';
-                const isP1Attacker = attackerName === currentP1Name;
-                const defenderId = isP1Attacker ? 'p2' : 'p1';
-                
-                // 1撃目
-                if (guardTargets.includes(target)) {
-                    this.addLog(`${attackerName}は${target}を狙って${attacks[0]}したが、${defenderName}は${target}への攻撃を読み切って躱した。`);
-                    return;
-                }
-
-                if (guardAttacks1.includes(attacks[0])) {
-                    this.addLog(`${attackerName}は${target}を狙って${attacks[0]}したが、${defenderName}は${attacks[0]}攻撃を見切って躱した。`);
-                    return;
-                }
-
-                this.addLog(`${attackerName}は${defenderName}の${target}に${attacks[0]}攻撃した。`);
-                await new Promise(resolve => setTimeout(resolve, 500));
-
-                // 2撃目
-                if (this.previousSecondHitFailed[defenderId]) {
-                    // 前ターンで2撃目を受けていた場合
-                    this.addLog(`${attackerName}はさらに${defenderName}の${target}に${attacks[1]}攻撃した。${defenderName}は${attacks[1]}攻撃を見切っていたが、前回の攻撃の影響で防げなかった。`);
-                    this.addLog(`${defenderName}はダウンした。`);
-                } else {
-                    if (guardAttacks2.includes(attacks[1])) {
-                        this.addLog(`${attackerName}はさらに${target}を狙って${attacks[1]}したが、${defenderName}は${attacks[1]}への攻撃を読み切って躱した。`);
-                        // 2撃目失敗フラグを立てる
-                        this.previousSecondHitFailed[defenderId] = true;
-                        return;
-                    }
-                    this.addLog(`${attackerName}はさらに${defenderName}の${target}に${attacks[1]}攻撃した。`);
-                    this.addLog(`${defenderName}はダウンした。`);
-                }
-
-                // 追い討ち
-//                let followupTarget = this.getRandomItem(this.followupTargets);
-//                let followupAttack = this.getRandomItem(this.followupAttacks);
-                let followupCombo = this.getRandomItem(this.followupCombos); // 固定で最初のコンボを選択
-                let followupTarget = followupCombo.target;
-                let followupAttack = followupCombo.attack;                
-                //this.addLog(`${attackerName} 狙う部位：${followupTarget} 攻撃方法：${followupAttack}`);
-                this.addLog(`${attackerName}は${followupAttack}攻撃の準備のため技を出す部位を攻撃部位に当てがい、今からすることを察させた。`);
-                this.addLog(`${attackerName}はダウンしている${defenderName}の${followupTarget}に${followupAttack}攻撃した。`);
-
-                // ラウンド更新
-                const currentP1Name2 = this.p1Name || localStorage.getItem('p1Name') || 'Player 1';
-                if (attackerName === currentP1Name2) {
-                    this.rounds.p1++;
-                } else {
-                    this.rounds.p2++;
-                }
-
-                // ラウンド終了時にフラグをリセット
-                this.previousSecondHitFailed.p1 = false;
-                this.previousSecondHitFailed.p2 = false;
-                
-                if (this.rounds.p1 === 2 || this.rounds.p2 === 2) {
-                    this.addLog(`${defenderName}は立ち上がれない。`);
-                    this.addLog(`戦闘終了。`);
-                    const backBtn = document.getElementById('returnButton');
-                    if (backBtn) backBtn.style.display = 'block';
-
-                    // フィニッシュ
-//                    let finishTarget = this.getRandomItem(this.finishTargets);
-//                    let finishAttack = this.getRandomItem(this.finishAttacks);
-                let finishCombo = this.getRandomItem(this.finishCombos); // 固定で最初のコンボを選択
-                let finishTarget = finishCombo.target;
-                let finishAttack = finishCombo.attack;                
-                    
-                    //this.addLog(`${attackerName} 狙う部位：${finishTarget} 攻撃方法：${finishAttack}`);
-                this.addLog(`${attackerName}は${finishAttack}攻撃の準備のため技を出す部位を攻撃部位に当てがい、今からすることを察させた。`);
-                    this.addLog(`${attackerName}は最後に嫌がる${defenderName}の${finishTarget}に${finishAttack}攻撃した。`);
-                    this.addLog(`${attackerName}は抵抗する${defenderName}の${finishTarget}にさらに${finishAttack}攻撃した。`);
-                } else {
-                    this.addLog(`${attackerName}はダウンしている${defenderName}を無理やり立たせた。`);
-                    this.addLog(`戦闘再開。`);
-                }
-
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            }
+        while (p1.hp > 0 && p2.hp > 0) {
+            await this.executeTurn(p1, p2);
         }
 
-        const battleSystem = new BattleSystem();
+        this.addLog('戦闘終了');
+        const backBtn = document.getElementById('returnButton');
+        if (backBtn) backBtn.style.display = 'block';
+    }
 
-        function startBattle() {
-            battleSystem.startBattle();
+    async executeTurn(p1, p2) {
+        this.reduceTrauma(p1);
+        this.reduceTrauma(p2);
+
+        p1.command = this.chooseCommand(p1);
+        p2.command = this.chooseCommand(p2);
+
+        this.addLog(`${p1.name}: ${p1.command} / ${p2.name}: ${p2.command}`);
+
+        const result1 = this.outcome(p1.command, p2.command);
+        const result2 = this.outcome(p2.command, p1.command);
+
+        if (result1 === 'win') {
+            p2.hp -= 10;
+            if (p1.command === Commands.HOLD_COUNTER && p2.command === Commands.HOLD) {
+                p2.trauma = 3;
+                p1.trauma = 0;
+                this.addLog(`${p1.name}のHold Counter成功！${p2.name}にTrauma付与`);
+            }
+            if (p1.trauma > 0) p1.trauma = Math.max(p1.trauma - 1, 0);
+            this.addLog(`${p2.name}のHP: ${p2.hp}`);
+        } else if (result1 === 'lose') {
+            p1.hp -= 10;
+            if (p2.command === Commands.HOLD_COUNTER && p1.command === Commands.HOLD) {
+                p1.trauma = 3;
+                p2.trauma = 0;
+                this.addLog(`${p2.name}のHold Counter成功！${p1.name}にTrauma付与`);
+            }
+            if (p2.trauma > 0) p2.trauma = Math.max(p2.trauma - 1, 0);
+            this.addLog(`${p1.name}のHP: ${p1.hp}`);
+        } else {
+            this.addLog('相打ち');
         }
-				
+
+        this.updateCooldowns(p1);
+        this.updateCooldowns(p2);
+
+        await new Promise(r => setTimeout(r, 500));
+    }
+}
+
+const battleSystem = new BattleSystem();
+
+function startBattle() {
+    battleSystem.startBattle();
+}
 				function updatePlayerInfo(playerId) {
     const characterSelect = document.getElementById(`${playerId}CharacterSelect`);
     const genderSelect = document.getElementById(`${playerId}GenderSelect`);
