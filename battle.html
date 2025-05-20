@@ -33,6 +33,20 @@
         <button onclick="startBattle()">バトル開始</button>
         <textarea id="battleLog" class="battle-log" readonly></textarea>
         <button id="returnButton" onclick="backToSelect()" style="display:none;">キャラクターセレクトに戻る</button>
+        <div class="technique-list">
+            <h2>技一覧</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>技名</th>
+                        <th>ダメージ</th>
+                        <th>説明</th>
+                        <th>ダウン状態</th>
+                    </tr>
+                </thead>
+                <tbody id="techTableBody"></tbody>
+            </table>
+        </div>
     </div>
     <div class="input-section">
         <h2>バトルログ操作</h2>

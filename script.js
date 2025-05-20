@@ -21,6 +21,23 @@ const Commands = {
 
 const COMMAND_LIST = Object.values(Commands);
 
+const TECHNIQUES = {
+    "掴み_正面_A": { "技名": "掴み（正面）A", "ダメージ": 10, "説明": "相手を掴んで投げ飛ばす Aバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "掴み_正面_B": { "技名": "掴み（正面）B", "ダメージ": 10, "説明": "相手を掴んで投げ飛ばす Bバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "掴み_背後_A": { "技名": "掴み（背後）A", "ダメージ": 10, "説明": "相手を掴んで投げ飛ばす Aバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "掴み_背後_B": { "技名": "掴み（背後）B", "ダメージ": 10, "説明": "相手を掴んで投げ飛ばす Bバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "ホールド_正面_A": { "技名": "ホールド（正面）A", "ダメージ": 10, "説明": "相手の動きを捕らえ締め上げる Aバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "ホールド_正面_B": { "技名": "ホールド（正面）B", "ダメージ": 10, "説明": "相手の動きを捕らえ締め上げる Bバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "ホールド_背後_A": { "技名": "ホールド（背後）A", "ダメージ": 10, "説明": "相手の動きを捕らえ締め上げる Aバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "ホールド_背後_B": { "技名": "ホールド（背後）B", "ダメージ": 10, "説明": "相手の動きを捕らえ締め上げる Bバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "ホールド返し_正面_A": { "技名": "ホールド返し（正面）A", "ダメージ": 10, "説明": "ホールドを見切って返す高ダメージ技 Aバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "ホールド返し_正面_B": { "技名": "ホールド返し（正面）B", "ダメージ": 10, "説明": "ホールドを見切って返す高ダメージ技 Bバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "突き上げ_正面_A": { "技名": "突き上げ（正面）A", "ダメージ": 10, "説明": "下から強烈に突き上げて打ち上げる Aバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "突き上げ_正面_B": { "技名": "突き上げ（正面）B", "ダメージ": 10, "説明": "下から強烈に突き上げて打ち上げる Bバリエーション。相手を仰向けに倒す。", "ダウン状態": "仰向け" },
+    "突き上げ_背後_A": { "技名": "突き上げ（背後）A", "ダメージ": 10, "説明": "下から強烈に突き上げて打ち上げる Aバリエーション。相手を仰向けに倒す。", "ダウン状態": "うつ伏せ" },
+    "突き上げ_背後_B": { "技名": "突き上げ（背後）B", "ダメージ": 10, "説明": "下から強烈に突き上げて打ち上げる Bバリエーション。相手を仰向けに倒す。", "ダウン状態": "うつ伏せ" }
+};
+
 class BattleSystem {
     constructor() {
         this.logCounter = 1;
@@ -74,6 +91,25 @@ class BattleSystem {
         if (player.hold_counter_cd > 0) cmds = cmds.filter(c => c !== Commands.HOLD_COUNTER);
         if (player.trauma > 0) cmds = cmds.filter(c => c !== Commands.HOLD);
         return cmds;
+    }
+
+    randomTechnique(prefix) {
+        const keys = Object.keys(TECHNIQUES).filter(k => k.startsWith(prefix));
+        if (keys.length === 0) return null;
+        const key = keys[Math.floor(Math.random() * keys.length)];
+        return TECHNIQUES[key];
+    }
+
+    determineTechnique(attCmd, defCmd) {
+        if (attCmd === Commands.GRAB) return this.randomTechnique('掴み_正面');
+        if (attCmd === Commands.GUARD && defCmd === Commands.SIDESTEP) return this.randomTechnique('掴み_正面');
+        if (attCmd === Commands.SIDESTEP && defCmd === Commands.GRAB) return this.randomTechnique('掴み_背後');
+        if (attCmd === Commands.HOLD) return this.randomTechnique('ホールド_正面');
+        if (attCmd === Commands.SIDESTEP && defCmd === Commands.HOLD) return this.randomTechnique('ホールド_背後');
+        if (attCmd === Commands.HOLD_COUNTER && defCmd === Commands.HOLD) return this.randomTechnique('ホールド返し_正面');
+        if (attCmd === Commands.SIDESTEP && defCmd === Commands.HOLD_COUNTER) return this.randomTechnique('突き上げ_正面');
+        if (attCmd === Commands.GUARD && defCmd === Commands.HOLD_COUNTER) return this.randomTechnique('突き上げ_背後');
+        return null;
     }
 
     chooseCommand(player) {
@@ -164,7 +200,12 @@ class BattleSystem {
         const result1 = this.outcome(p1.command, p2.command);
 
         if (result1 === 'win') {
-            p2.hp -= 10;
+            const tech = this.determineTechnique(p1.command, p2.command);
+            const damage = tech ? tech['ダメージ'] : 10;
+            p2.hp -= damage;
+            if (tech) {
+                this.addLog(`${p1.name}の${tech['技名']}! ${tech['説明']}`);
+            }
             if (p1.command === Commands.HOLD_COUNTER && p2.command === Commands.HOLD) {
                 p2.trauma = 3;
                 p1.trauma = 0;
@@ -173,7 +214,12 @@ class BattleSystem {
             if (p1.trauma > 0) p1.trauma = Math.max(p1.trauma - 1, 0);
             this.addLog(`${p2.name}のHP: ${p2.hp}`);
         } else if (result1 === 'lose') {
-            p1.hp -= 10;
+            const tech = this.determineTechnique(p2.command, p1.command);
+            const damage = tech ? tech['ダメージ'] : 10;
+            p1.hp -= damage;
+            if (tech) {
+                this.addLog(`${p2.name}の${tech['技名']}! ${tech['説明']}`);
+            }
             if (p2.command === Commands.HOLD_COUNTER && p1.command === Commands.HOLD) {
                 p1.trauma = 3;
                 p2.trauma = 0;
@@ -340,3 +386,15 @@ function loadBattleNames() {
 }
 
 loadBattleNames();
+
+function populateTechList() {
+    const tbody = document.getElementById('techTableBody');
+    if (!tbody) return;
+    Object.values(TECHNIQUES).forEach(t => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${t['技名']}</td><td>${t['ダメージ']}</td><td>${t['説明']}</td><td>${t['ダウン状態']}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+populateTechList();
