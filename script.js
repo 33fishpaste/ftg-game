@@ -121,7 +121,9 @@ this.finishCombos = [
             }
 
             async executeAttackPhase(attackerName, defenderName, target, attacks, guardTargets, guardAttacks1, guardAttacks2) {
-                const isP1Attacker = attackerName === (document.getElementById('player1Name').value || 'Player 1');
+                const p1NameElem = document.getElementById('player1Name');
+                const currentP1Name = p1NameElem ? p1NameElem.value : (localStorage.getItem('p1Name') || 'Player 1');
+                const isP1Attacker = attackerName === currentP1Name;
                 const defenderId = isP1Attacker ? 'p2' : 'p1';
                 
                 // 1撃目
@@ -165,7 +167,9 @@ this.finishCombos = [
                 this.addLog(`${attackerName}はダウンしている${defenderName}の${followupTarget}に${followupAttack}攻撃した。`);
 
                 // ラウンド更新
-                if (attackerName === document.getElementById('player1Name').value || attackerName === 'Player 1') {
+                const p1NameElem2 = document.getElementById('player1Name');
+                const currentP1Name2 = p1NameElem2 ? p1NameElem2.value : (localStorage.getItem('p1Name') || 'Player 1');
+                if (attackerName === currentP1Name2) {
                     this.rounds.p1++;
                 } else {
                     this.rounds.p2++;
