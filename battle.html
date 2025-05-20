@@ -8,8 +8,36 @@
 <body>
     <div class="container">
         <h1>格闘ゲームタイムライン</h1>
-        <p>プレイヤー1: <span id="battlePlayer1"></span></p>
-        <p>プレイヤー2: <span id="battlePlayer2"></span></p>
+        <div class="battle-ui">
+            <div class="player-panel" id="p1Panel">
+                <h3 id="player1NameLabel"></h3>
+                <div class="hp-bar-container"><div id="p1HpBar" class="hp-bar"></div></div>
+                <div class="status">Sidestep CD: <span id="p1SidestepCD">0</span></div>
+                <div class="status">Hold Counter CD: <span id="p1HoldCounterCD">0</span></div>
+                <div class="status">Trauma: <span id="p1Trauma">0</span></div>
+                <div class="command-buttons" id="p1Commands">
+                    <button id="p1-grab" data-cmd="Grab">Grab</button>
+                    <button id="p1-hold" data-cmd="Hold">Hold</button>
+                    <button id="p1-sidestep" data-cmd="Sidestep">Sidestep</button>
+                    <button id="p1-holdcounter" data-cmd="Hold Counter">Hold Counter</button>
+                    <button id="p1-guard" data-cmd="Guard">Guard</button>
+                </div>
+            </div>
+            <div class="player-panel" id="p2Panel">
+                <h3 id="player2NameLabel"></h3>
+                <div class="hp-bar-container"><div id="p2HpBar" class="hp-bar"></div></div>
+                <div class="status">Sidestep CD: <span id="p2SidestepCD">0</span></div>
+                <div class="status">Hold Counter CD: <span id="p2HoldCounterCD">0</span></div>
+                <div class="status">Trauma: <span id="p2Trauma">0</span></div>
+                <div class="command-buttons" id="p2Commands">
+                    <button id="p2-grab" data-cmd="Grab">Grab</button>
+                    <button id="p2-hold" data-cmd="Hold">Hold</button>
+                    <button id="p2-sidestep" data-cmd="Sidestep">Sidestep</button>
+                    <button id="p2-holdcounter" data-cmd="Hold Counter">Hold Counter</button>
+                    <button id="p2-guard" data-cmd="Guard">Guard</button>
+                </div>
+            </div>
+        </div>
         <button onclick="startBattle()">バトル開始</button>
         <textarea id="battleLog" class="battle-log" readonly></textarea>
         <button id="returnButton" onclick="backToSelect()" style="display:none;">キャラクターセレクトに戻る</button>
