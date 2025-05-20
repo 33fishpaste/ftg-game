@@ -21,6 +21,8 @@ const Commands = {
 
 const COMMAND_LIST = Object.values(Commands);
 
+let TECHNIQUES = {};
+
 class BattleSystem {
     constructor() {
         this.logCounter = 1;
@@ -74,6 +76,43 @@ class BattleSystem {
         if (player.hold_counter_cd > 0) cmds = cmds.filter(c => c !== Commands.HOLD_COUNTER);
         if (player.trauma > 0) cmds = cmds.filter(c => c !== Commands.HOLD);
         return cmds;
+    }
+
+    randomTechnique(prefix) {
+        const keys = Object.keys(TECHNIQUES).filter(k => k.startsWith(prefix));
+        if (keys.length === 0) return null;
+        const key = keys[Math.floor(Math.random() * keys.length)];
+        return TECHNIQUES[key];
+    }
+
+    determineTechniques(attCmd, defCmd) {
+        const list = [];
+        const pushRandom = (p) => {
+            const t = this.randomTechnique(p);
+            if (t) list.push(t);
+        };
+
+        if (attCmd === Commands.GRAB) pushRandom('掴み_正面');
+        else if (attCmd === Commands.GUARD && defCmd === Commands.SIDESTEP) pushRandom('掴み_正面');
+        else if (attCmd === Commands.SIDESTEP && defCmd === Commands.GRAB) pushRandom('掴み_背後');
+        else if (attCmd === Commands.HOLD) pushRandom('ホールド_正面');
+        else if (attCmd === Commands.SIDESTEP && defCmd === Commands.HOLD) pushRandom('ホールド_背後');
+        else if (attCmd === Commands.HOLD_COUNTER && defCmd === Commands.HOLD) {
+            const variant = Math.random() < 0.5 ? 'A' : 'B';
+            const start = TECHNIQUES[`ホールド返し_正面_${variant}_開始`];
+            const pursue = TECHNIQUES[`ホールド返し_正面_${variant}_追撃`];
+            const end = TECHNIQUES[`ホールド返し_正面_${variant}_終了`];
+            if (start && pursue && end) {
+                list.push(start);
+                const loops = Math.floor(Math.random() * 3) + 1;
+                for (let i = 0; i < loops; i++) list.push(pursue);
+                list.push(end);
+            }
+        }
+        else if (attCmd === Commands.SIDESTEP && defCmd === Commands.HOLD_COUNTER) pushRandom('突き上げ_正面');
+        else if (attCmd === Commands.GUARD && defCmd === Commands.HOLD_COUNTER) pushRandom('突き上げ_背後');
+
+        return list;
     }
 
     chooseCommand(player) {
@@ -164,7 +203,14 @@ class BattleSystem {
         const result1 = this.outcome(p1.command, p2.command);
 
         if (result1 === 'win') {
-            p2.hp -= 10;
+            const techs = this.determineTechniques(p1.command, p2.command);
+            let damage = 0;
+            for (const t of techs) {
+                damage += t['ダメージ'];
+                this.addLog(`${p1.name}の${t['技名']}! ${t['説明']}`);
+            }
+            if (damage === 0) damage = 10;
+            p2.hp -= damage;
             if (p1.command === Commands.HOLD_COUNTER && p2.command === Commands.HOLD) {
                 p2.trauma = 3;
                 p1.trauma = 0;
@@ -173,7 +219,14 @@ class BattleSystem {
             if (p1.trauma > 0) p1.trauma = Math.max(p1.trauma - 1, 0);
             this.addLog(`${p2.name}のHP: ${p2.hp}`);
         } else if (result1 === 'lose') {
-            p1.hp -= 10;
+            const techs = this.determineTechniques(p2.command, p1.command);
+            let damage = 0;
+            for (const t of techs) {
+                damage += t['ダメージ'];
+                this.addLog(`${p2.name}の${t['技名']}! ${t['説明']}`);
+            }
+            if (damage === 0) damage = 10;
+            p1.hp -= damage;
             if (p2.command === Commands.HOLD_COUNTER && p1.command === Commands.HOLD) {
                 p1.trauma = 3;
                 p2.trauma = 0;
@@ -340,3 +393,15 @@ function loadBattleNames() {
 }
 
 loadBattleNames();
+
+function populateTechList() {
+    const tbody = document.getElementById('techTableBody');
+    if (!tbody) return;
+    Object.values(TECHNIQUES).forEach(t => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${t['技名']}</td><td>${t['ダメージ']}</td><td>${t['説明']}</td><td>${t['ダウン状態']}</td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+fetch("techniques.json").then(r=>r.json()).then(d=>{TECHNIQUES=d;populateTechList();});
