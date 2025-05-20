@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>格闘ゲームタイムライン</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>格闘ゲームタイムライン</h1>
+        <p>プレイヤー1: <span id="battlePlayer1"></span></p>
+        <p>プレイヤー2: <span id="battlePlayer2"></span></p>
+        <button onclick="startBattle()">バトル開始</button>
+        <textarea id="battleLog" class="battle-log" readonly></textarea>
+        <button id="returnButton" onclick="backToSelect()" style="display:none;">キャラクターセレクトに戻る</button>
+    </div>
+    <div class="input-section">
+        <h2>バトルログ操作</h2>
+        <button onclick="copyBattleLog()">バトルログをコピー</button>
+        <textarea id="battleLog" class="battle-log" readonly></textarea>
+
+        <h3>定型文コピー</h3>
+        <button onclick="copyTemplateText(1)">定型文1をコピー</button>
+        <button onclick="copyTemplateText(2)">定型文2をコピー</button>
+        <button onclick="copyTemplateText(3)">定型文3をコピー</button>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
