@@ -26,6 +26,8 @@ this.finishCombos = [
                     p1: false,
                     p2: false
                 };
+                this.p1Name = '';
+                this.p2Name = '';
             }
 
             getRandomItem(array, excludeItems = []) {
@@ -59,6 +61,10 @@ this.finishCombos = [
                 const p2Input = document.getElementById('player2Name');
                 const p1Name = p1Input ? p1Input.value : (localStorage.getItem('p1Name') || 'Player 1');
                 const p2Name = p2Input ? p2Input.value : (localStorage.getItem('p2Name') || 'Player 2');
+
+                // Store names for later use so battle.html doesn't need the inputs
+                this.p1Name = p1Name;
+                this.p2Name = p2Name;
 
                 const span1 = document.getElementById('battlePlayer1');
                 const span2 = document.getElementById('battlePlayer2');
@@ -121,7 +127,9 @@ this.finishCombos = [
             }
 
             async executeAttackPhase(attackerName, defenderName, target, attacks, guardTargets, guardAttacks1, guardAttacks2) {
-                const isP1Attacker = attackerName === (document.getElementById('player1Name').value || 'Player 1');
+                // Determine attacker side based on stored names to avoid relying on input elements
+                const currentP1Name = this.p1Name || localStorage.getItem('p1Name') || 'Player 1';
+                const isP1Attacker = attackerName === currentP1Name;
                 const defenderId = isP1Attacker ? 'p2' : 'p1';
                 
                 // 1撃目
@@ -165,7 +173,8 @@ this.finishCombos = [
                 this.addLog(`${attackerName}はダウンしている${defenderName}の${followupTarget}に${followupAttack}攻撃した。`);
 
                 // ラウンド更新
-                if (attackerName === document.getElementById('player1Name').value || attackerName === 'Player 1') {
+                const currentP1Name2 = this.p1Name || localStorage.getItem('p1Name') || 'Player 1';
+                if (attackerName === currentP1Name2) {
                     this.rounds.p1++;
                 } else {
                     this.rounds.p2++;
