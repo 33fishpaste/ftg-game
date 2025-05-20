@@ -253,7 +253,7 @@ const battleSystem = new BattleSystem();
 function startBattle() {
     battleSystem.startBattle();
 }
-				function updatePlayerInfo(playerId) {
+function updatePlayerInfo(playerId) {
     const characterSelect = document.getElementById(`${playerId}CharacterSelect`);
     const genderSelect = document.getElementById(`${playerId}GenderSelect`);
 		const typeSelect = document.getElementById(`${playerId}TypeSelect`);
@@ -265,14 +265,15 @@ function startBattle() {
     const gender = genderSelect.value;
 		const type = typeSelect.value;
 
-    // キャラクター名(性別)を自動設定
     if (characterName && gender && type) {
         playerNameInput.value = `${characterName} (${gender}/${type})`;
-
-        // 画像を更新
-        const imagePath = `./img/portrait/${characterName.replace(/\s/g, '_')}.webp`;
-        imageElement.src = imagePath;
-        imageElement.style.display = 'block';
+        const info = CHARACTER_DATA?.['種族']?.[characterName];
+        if (info && info['画像'] && info['画像']['ポートレート']) {
+            imageElement.src = info['画像']['ポートレート'];
+            imageElement.style.display = 'block';
+        } else {
+            imageElement.style.display = 'none';
+        }
     } else {
         playerNameInput.value = '';
         imageElement.style.display = 'none';
@@ -280,36 +281,10 @@ function startBattle() {
 }
 
 function setRandomSettings(playerId) {
-    const characterOptions = ['サナギ体',
-'アラクネアワーム',
-'ベルバーワーム',
-'フォルミカアルビュスワーム',
-'ジオフィリドワーム',
-'アキャリナワーム',
-'ランピリスワーム',
-'コキリアワーム',
-'エピラクナワーム',
-'キャマラスワーム',
-'ジェノミアスワーム',
-'ミュスカワーム',
-'ビエラワーム',
-'プレクスワーム',
-'レプトーフィスワーム',
-'グリラスワーム',
-'カッシスワーム',
-'シシーラワーム',
-'フォリアタスワーム',
-'コレオプテラワーム',
-'ベルクリネタスワーム'];
-    const genderOptions = ['雄', '雌'];
-    const typeOptions = [
-        '好戦的で戦闘狂',
-        '好戦的で支配的',
-        '好戦的で紳士的',
-        '非好戦的で卑怯',
-        '非好戦的で冷酷',
-        '非好戦的で慈愛'
-    ];
+    if (!CHARACTER_DATA) return;
+    const characterOptions = Object.keys(CHARACTER_DATA['種族'] || {});
+    const genderOptions = Object.keys(CHARACTER_DATA['性別'] || {});
+    const typeOptions = Object.keys(CHARACTER_DATA['性格'] || {});
 
     // ランダムな値を選択
     const randomCharacter = characterOptions[Math.floor(Math.random() * characterOptions.length)];
@@ -394,6 +369,53 @@ function loadBattleNames() {
 
 loadBattleNames();
 
+let CHARACTER_DATA = null;
+
+function flattenTech(data) {
+    const result = {};
+    Object.values(data).forEach(g => Object.assign(result, g));
+    return result;
+}
+
+function populateCharacterOptions() {
+    if (!CHARACTER_DATA) return;
+    const characters = Object.keys(CHARACTER_DATA['種族'] || {});
+    const genders = Object.keys(CHARACTER_DATA['性別'] || {});
+    const types = Object.keys(CHARACTER_DATA['性格'] || {});
+
+    ['player1', 'player2'].forEach(id => {
+        const cSel = document.getElementById(`${id}CharacterSelect`);
+        if (cSel && cSel.options.length === 1) {
+            characters.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n;
+                opt.textContent = n;
+                cSel.appendChild(opt);
+            });
+        }
+
+        const gSel = document.getElementById(`${id}GenderSelect`);
+        if (gSel && gSel.options.length === 1) {
+            genders.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n;
+                opt.textContent = n;
+                gSel.appendChild(opt);
+            });
+        }
+
+        const tSel = document.getElementById(`${id}TypeSelect`);
+        if (tSel && tSel.options.length === 1) {
+            types.forEach(n => {
+                const opt = document.createElement('option');
+                opt.value = n;
+                opt.textContent = n;
+                tSel.appendChild(opt);
+            });
+        }
+    });
+}
+
 function populateTechList() {
     const tbody = document.getElementById('techTableBody');
     if (!tbody) return;
@@ -404,4 +426,10 @@ function populateTechList() {
     });
 }
 
-fetch("techniques.json").then(r=>r.json()).then(d=>{TECHNIQUES=d;populateTechList();});
+fetch("techniques.json")
+  .then(r => r.json())
+  .then(d => { TECHNIQUES = flattenTech(d); populateTechList(); });
+
+fetch("characterData.json")
+  .then(r => r.json())
+  .then(d => { CHARACTER_DATA = d; populateCharacterOptions(); });
