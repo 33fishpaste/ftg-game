@@ -1,0 +1,33 @@
+body {
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background: #f0f0f0;
+}
+.fighters {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 20px;
+}
+.player {
+    text-align: center;
+}
+.hp-bar {
+    width: 100px; /* 1 HP = 1px */
+    height: 20px;
+    background: #ddd;
+    margin-top: 5px;
+}
+.hp {
+    height: 100%;
+    background: #e74c3c;
+    width: 100px;
+}
+.battle-log {
+    width: 100%;
+    height: 300px;
+    margin-top: 20px;
+}
+button {
+    padding: 10px 20px;
+    margin-bottom: 10px;
+}
