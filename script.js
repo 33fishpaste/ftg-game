@@ -23,6 +23,51 @@ const COMMAND_LIST = Object.values(Commands);
 
 let TECHNIQUES = {};
 
+const DB_NAME = 'ftg-game';
+const STORE_NAME = 'data';
+
+function openDb() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(STORE_NAME)) {
+                db.createObjectStore(STORE_NAME, { keyPath: 'key' });
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+}
+
+async function getData(key) {
+    const db = await openDb();
+    return new Promise((resolve) => {
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get(key);
+        req.onsuccess = () => resolve(req.result ? req.result.value : null);
+        req.onerror = () => resolve(null);
+    });
+}
+
+async function setData(key, value) {
+    const db = await openDb();
+    return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put({ key, value });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+    });
+}
+
+function deleteDb() {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.deleteDatabase(DB_NAME);
+        req.onsuccess = () => resolve();
+        req.onerror = () => reject(req.error);
+    });
+}
+
 class BattleSystem {
     constructor() {
         this.logCounter = 1;
@@ -369,6 +414,10 @@ function goToCharacterSelect() {
     location.href = 'characterSelect.html';
 }
 
+function goToSettings() {
+    location.href = 'settings.html';
+}
+
 function startBattleFromSelect() {
     const p1Name = document.getElementById('player1Name').value || 'Player 1';
     const p2Name = document.getElementById('player2Name').value || 'Player 2';
@@ -440,6 +489,7 @@ function populateCharacterOptions() {
 function populateTechList() {
     const tbody = document.getElementById('techTableBody');
     if (!tbody) return;
+    tbody.innerHTML = '';
     Object.values(TECHNIQUES).forEach(t => {
         const tr = document.createElement('tr');
         tr.innerHTML = `<td>${t['技名']}</td><td>${t['ダメージ']}</td><td>${t['説明']}</td><td>${t['ダウン状態']}</td>`;
@@ -447,10 +497,57 @@ function populateTechList() {
     });
 }
 
-fetch("techniques.json")
-  .then(r => r.json())
-  .then(d => { TECHNIQUES = flattenTech(d); populateTechList(); });
+async function loadData() {
+    const tech = await getData('techniques');
+    if (tech) {
+        TECHNIQUES = flattenTech(tech);
+        populateTechList();
+    } else {
+        fetch('techniques.json')
+            .then(r => r.json())
+            .then(d => { TECHNIQUES = flattenTech(d); populateTechList(); });
+    }
 
-fetch("characterData.json")
-  .then(r => r.json())
-  .then(d => { CHARACTER_DATA = d; populateCharacterOptions(); });
+    const charData = await getData('characterData');
+    if (charData) {
+        CHARACTER_DATA = charData;
+        populateCharacterOptions();
+    } else {
+        fetch('characterData.json')
+            .then(r => r.json())
+            .then(d => { CHARACTER_DATA = d; populateCharacterOptions(); });
+    }
+}
+
+async function importTechniques() {
+    const text = document.getElementById('techniqueJson').value;
+    try {
+        const json = JSON.parse(text);
+        await setData('techniques', json);
+        alert('技データを保存しました');
+    } catch (e) {
+        alert('JSONの解析に失敗しました');
+    }
+}
+
+async function importCharacters() {
+    const text = document.getElementById('characterJson').value;
+    try {
+        const json = JSON.parse(text);
+        await setData('characterData', json);
+        alert('キャラクターデータを保存しました');
+    } catch (e) {
+        alert('JSONの解析に失敗しました');
+    }
+}
+
+async function deleteDatabase() {
+    await deleteDb();
+    alert('データベースを削除しました');
+}
+
+function backToTitle() {
+    location.href = 'index.html';
+}
+
+loadData();
