@@ -7,7 +7,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>格闘ゲームタイムライン</h1>
+        <h1 id="battleTitle">格闘ゲームタイムライン</h1>
         <div class="battle-ui">
             <div class="player-ui" id="p1Ui">
                 <h3 id="battlePlayer1"></h3>
@@ -36,18 +36,18 @@
                 <div class="down-command-buttons" id="p2DownCommands"></div>
             </div>
         </div>
-        <button onclick="startBattle()">バトル開始</button>
+        <button id="startBattleButton" onclick="startBattle()">バトル開始</button>
         <textarea id="battleLog" class="battle-log" readonly></textarea>
         <button id="returnButton" onclick="backToSelect()" style="display:none;">キャラクターセレクトに戻る</button>
         <div class="technique-list">
-            <h2>技一覧</h2>
+            <h2 id="techListTitle">技一覧</h2>
             <table>
                 <thead>
                     <tr>
-                        <th>技名</th>
-                        <th>ダメージ</th>
-                        <th>説明</th>
-                        <th>ダウン状態</th>
+                        <th id="techHeaderName">技名</th>
+                        <th id="techHeaderDamage">ダメージ</th>
+                        <th id="techHeaderDescription">説明</th>
+                        <th id="techHeaderDownState">ダウン状態</th>
                     </tr>
                 </thead>
                 <tbody id="techTableBody"></tbody>
@@ -55,13 +55,13 @@
         </div>
     </div>
     <div class="input-section">
-        <h2>バトルログ操作</h2>
-        <button onclick="copyBattleLog()">バトルログをコピー</button>
+        <h2 id="logSectionTitle">バトルログ操作</h2>
+        <button id="copyLogButton" onclick="copyBattleLog()">バトルログをコピー</button>
         
-        <h3>定型文コピー</h3>
-        <button onclick="copyTemplateText(1)">定型文1をコピー</button>
-        <button onclick="copyTemplateText(2)">定型文2をコピー</button>
-        <button onclick="copyTemplateText(3)">定型文3をコピー</button>
+        <h3 id="templateCopyTitle">定型文コピー</h3>
+        <button id="templateCopy1" onclick="copyTemplateText(1)">定型文1をコピー</button>
+        <button id="templateCopy2" onclick="copyTemplateText(2)">定型文2をコピー</button>
+        <button id="templateCopy3" onclick="copyTemplateText(3)">定型文3をコピー</button>
   </div>
   <script src="script.js"></script>
 </body>

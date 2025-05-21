@@ -27,6 +27,10 @@ const Commands = {
 
 const COMMAND_LIST = Object.values(Commands);
 
+function getCommandLabel(cmd) {
+    return MESSAGES?.battle?.commands?.[cmd] || cmd;
+}
+
 const DOWN_COMMANDS = [
     '弱パンチ', '強パンチ', '弱キック', '強キック',
     '弱特殊', '強特殊',
@@ -58,6 +62,16 @@ let CPU_WEAK_RATE = DEFAULT_WEAK_RATE;
 
 const DB_NAME = 'ftg-game';
 const STORE_NAME = 'data';
+
+let MESSAGES = {};
+
+function t(path) {
+    return path.split('.').reduce((o, k) => (o ? o[k] : undefined), MESSAGES);
+}
+
+function format(str, data) {
+    return str.replace(/{{(.*?)}}/g, (_, k) => (k in data ? data[k] : ''));
+}
 
 function openDb() {
     return new Promise((resolve, reject) => {
@@ -113,7 +127,7 @@ class BattleSystem {
         wrap.innerHTML = '';
         for (const cmd of COMMAND_LIST) {
             const btn = document.createElement('button');
-            btn.textContent = cmd;
+            btn.textContent = getCommandLabel(cmd);
             btn.dataset.cmd = cmd;
             wrap.appendChild(btn);
         }
@@ -249,7 +263,11 @@ class BattleSystem {
     async applyTechnique(att, def, tech, attPrefix, defPrefix) {
         if (!tech) return;
         const dmg = tech['ダメージ'] || 0;
-        this.addLog(`${att.name}の${tech['技名']}! ${tech['説明']}`);
+        this.addLog(format(t('logs.techUsed'), {
+            attacker: att.name,
+            techName: tech['技名'],
+            description: tech['説明']
+        }));
         att.downTechnique = this.labelForTech(tech);
         this.refreshPlayerUI(att, attPrefix);
         def.state = tech['ダウン状態'] || def.state;
@@ -331,7 +349,7 @@ class BattleSystem {
             const probs = [0.75, 0.5, 0.25, 0];
             for (let i = 0; i < probs.length; i++) {
                 if (Math.random() >= probs[i]) {
-                    this.addLog('追撃失敗');
+                    this.addLog(t('logs.chaseFail'));
                     if (def.hp > 0) {
                         def.state = '立ち';
                         this.refreshPlayerUI(def, defPrefix);
@@ -523,7 +541,7 @@ class BattleSystem {
         this.createDownButtons('p1DownCommands');
         this.createDownButtons('p2DownCommands');
 
-        this.addLog(`${p1.name}と${p2.name}の戦闘開始`);
+        this.addLog(format(t('logs.battleStart'), { p1: p1.name, p2: p2.name }));
         this.refreshPlayerUI(p1, 'p1');
         this.refreshPlayerUI(p2, 'p2');
 
@@ -531,7 +549,7 @@ class BattleSystem {
             await this.executeTurn(p1, p2);
         }
 
-        this.addLog('戦闘終了');
+        this.addLog(t('logs.battleEnd'));
         if (backBtn) backBtn.style.display = 'block';
     }
 
@@ -572,7 +590,12 @@ class BattleSystem {
         this.refreshPlayerUI(p1, 'p1');
         this.refreshPlayerUI(p2, 'p2');
 
-        this.addLog(`${p1.name}: ${p1.command} / ${p2.name}: ${p2.command}`);
+        this.addLog(format(t('logs.commandLog'), {
+            p1: p1.name,
+            p1Command: getCommandLabel(p1.command),
+            p2: p2.name,
+            p2Command: getCommandLabel(p2.command)
+        }));
 
         const result1 = this.outcome(p1.command, p2.command);
 
@@ -583,7 +606,7 @@ class BattleSystem {
             const techs = this.determineTechniques(p2.command, p1.command);
             await this.performAttack(p2, p1, techs, 'p2', 'p1');
         } else {
-            this.addLog('相打ち');
+            this.addLog(t('logs.simultaneous'));
         }
 
         this.updateCooldowns(p1);
@@ -598,7 +621,7 @@ class BattleSystem {
     async performAttack(att, def, techs, attPrefix, defPrefix) {
         const isHC = att.command === Commands.HOLD_COUNTER && def.command === Commands.HOLD;
         if (isHC) {
-            this.addLog('ホールド返し中');
+            this.addLog(t('logs.holdCounterActive'));
             this.setLock(def, true, defPrefix);
             this.refreshPlayerUI(def, defPrefix);
             await this.wait();
@@ -606,7 +629,11 @@ class BattleSystem {
         let dealt = false;
         for (const t of techs) {
             const dmg = t['ダメージ'] || 0;
-            this.addLog(`${att.name}の${t['技名']}! ${t['説明']}`);
+            this.addLog(format(t('logs.techUsed'), {
+                attacker: att.name,
+                techName: t['技名'],
+                description: t['説明']
+            }));
             def.state = t['ダウン状態'] || def.state;
             if (dmg > 0) {
                 dealt = true;
@@ -625,13 +652,16 @@ class BattleSystem {
         if (isHC) {
             def.trauma = 3;
             att.trauma = 0;
-            this.addLog(`${att.name}のHold Counter成功！${def.name}にTrauma付与`);
+            this.addLog(format(t('logs.holdCounterSuccess'), {
+                attacker: att.name,
+                defender: def.name
+            }));
             this.setLock(def, false, defPrefix);
             this.refreshPlayerUI(def, defPrefix);
             await this.wait();
         }
         if (att.trauma > 0) att.trauma = Math.max(att.trauma - 1, 0);
-        this.addLog(`${def.name}のHP: ${def.hp}`);
+        this.addLog(format(t('logs.hpLog'), { name: def.name, hp: def.hp }));
         this.refreshPlayerUI(def, defPrefix);
 
         if (def.hp > -100) {
@@ -724,12 +754,12 @@ function copyBattleLog() {
     const battleLog = document.getElementById('battleLog').value;
 
     // 任意のテキストをバトルログの先頭に追加
-    const headerText = "次のシーンを1つずつ書いてください。最初の5つを書いてください。";
+    const headerText = t('copyHeader');
     const modifiedLog = `${headerText}\n\n${battleLog}`; // 1行空ける
 
     // クリップボードにコピー
     navigator.clipboard.writeText(modifiedLog).then(() => {
-        alert("バトルログをコピーしました！");
+        alert(t('alerts.battleLogCopied'));
     }).catch(err => {
         console.error("コピーに失敗しました:", err);
     });
@@ -742,13 +772,13 @@ function copyTemplateText(templateId) {
     // 定型文を指定
     switch (templateId) {
         case 1:
-            templateText = "・攻撃側の部位状態には感触を、モーションはどこをどうするかを記載し、受け手側のモーションには苦痛に悶え喘ぐ様を追加してください。 ・全てのワームは人間を襲う種族で恐怖を感じず、丈夫なため余程のことがない限りは呼吸困難や意識を失ったり、完全に壊死することはありません。また、敗北を認めません。 ダメージを受ける側のモーションは、両手で腹を押さえる、膝をつく、など、ダメージを受けた後の体の動作を書いてください。・察させる際は攻撃部位に触れさせてください。・双方のワームの性別と性格を考慮してください。性格は最後まで変わりません。01から05まで書き直して下さい。";
+            templateText = t('templateTexts.template1');
             break;
         case 2:
-            templateText = "・攻撃側の部位状態には感触を、モーションはどこをどうするかを記載し、受け手側のモーションには苦痛に悶え喘ぐ様を追加してください。 ・全てのワームは人間を襲う種族で恐怖を感じず、丈夫なため余程のことがない限りは呼吸困難や意識を失ったり、完全に壊死することはありません。また、敗北を認めません。 ダメージを受ける側のモーションは、両手で腹を押さえる、膝をつく、など、ダメージを受けた後の体の動作を書いてください。・双方は仲間です。・双方のワームの性別と性格と関係性を考慮してください。性格は最後まで変わりません。01から05まで書き直して下さい。";
+            templateText = t('templateTexts.template2');
             break;
         case 3:
-            templateText = "別ファイルにして続けてください。";
+            templateText = t('templateTexts.template3');
             break;
         default:
             console.error("無効なテンプレートIDです");
@@ -757,7 +787,7 @@ function copyTemplateText(templateId) {
 
     // クリップボードにコピー
     navigator.clipboard.writeText(templateText).then(() => {
-        alert(`定型文${templateId}をコピーしました！`);
+        alert(format(t('alerts.templateCopied'), { id: templateId }));
     }).catch(err => {
         console.error("コピーに失敗しました:", err);
     });
@@ -856,7 +886,54 @@ function populateTechList() {
     });
 }
 
+async function loadMessages() {
+    if (Object.keys(MESSAGES).length > 0) return;
+    try {
+        const resp = await fetch('messages.json');
+        if (resp.ok) {
+            MESSAGES = await resp.json();
+        }
+    } catch (e) {
+        console.error('failed to load messages', e);
+    }
+}
+
+function applyBattleMessages() {
+    const title = document.getElementById('battleTitle');
+    if (title) title.textContent = t('index.title');
+    const startBtn = document.getElementById('startBattleButton');
+    if (startBtn) startBtn.textContent = t('battle.startButton');
+    const returnBtn = document.getElementById('returnButton');
+    if (returnBtn) returnBtn.textContent = t('battle.returnButton');
+
+    const logTitle = document.getElementById('logSectionTitle');
+    if (logTitle) logTitle.textContent = t('battle.logSectionTitle');
+    const copyBtn = document.getElementById('copyLogButton');
+    if (copyBtn) copyBtn.textContent = t('battle.copyLogButton');
+    const tTitle = document.getElementById('templateCopyTitle');
+    if (tTitle) tTitle.textContent = t('battle.templateCopyTitle');
+    const tc1 = document.getElementById('templateCopy1');
+    if (tc1) tc1.textContent = t('battle.templateCopy1');
+    const tc2 = document.getElementById('templateCopy2');
+    if (tc2) tc2.textContent = t('battle.templateCopy2');
+    const tc3 = document.getElementById('templateCopy3');
+    if (tc3) tc3.textContent = t('battle.templateCopy3');
+
+    const techTitle = document.getElementById('techListTitle');
+    if (techTitle) techTitle.textContent = t('battle.techListTitle');
+    const thName = document.getElementById('techHeaderName');
+    if (thName) thName.textContent = t('battle.techTableHeaders.name');
+    const thDamage = document.getElementById('techHeaderDamage');
+    if (thDamage) thDamage.textContent = t('battle.techTableHeaders.damage');
+    const thDesc = document.getElementById('techHeaderDescription');
+    if (thDesc) thDesc.textContent = t('battle.techTableHeaders.description');
+    const thDown = document.getElementById('techHeaderDownState');
+    if (thDown) thDown.textContent = t('battle.techTableHeaders.downState');
+}
+
 async function loadData() {
+    await loadMessages();
+    applyBattleMessages();
     const tech = await getData('techniques');
     if (tech) {
         TECHNIQUES = flattenTech(tech);
@@ -898,9 +975,9 @@ async function importTechniques() {
     try {
         const json = JSON.parse(text);
         await setData('techniques', json);
-        alert('技データを保存しました');
+        alert(t('alerts.techSaved'));
     } catch (e) {
-        alert('JSONの解析に失敗しました');
+        alert(t('alerts.jsonError'));
     }
 }
 
@@ -909,9 +986,9 @@ async function importCharacters() {
     try {
         const json = JSON.parse(text);
         await setData('characterData', json);
-        alert('キャラクターデータを保存しました');
+        alert(t('alerts.characterSaved'));
     } catch (e) {
-        alert('JSONの解析に失敗しました');
+        alert(t('alerts.jsonError'));
     }
 }
 
@@ -922,7 +999,7 @@ async function saveDelay() {
     OUTPUT_DELAY = val;
     if (battleSystem) battleSystem.delay = val;
     await setData('outputDelay', val);
-    alert('間隔を保存しました');
+    alert(t('alerts.delaySaved'));
 }
 
 async function saveCpuWeakRate() {
@@ -936,7 +1013,7 @@ async function saveCpuWeakRate() {
 
 async function deleteDatabase() {
     await deleteDb();
-    alert('データベースを削除しました');
+    alert(t('alerts.dbDeleted'));
 }
 
 function backToTitle() {
