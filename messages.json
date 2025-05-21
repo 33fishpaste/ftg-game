@@ -1,0 +1,93 @@
+{
+  "index": {
+    "title": "格闘ゲームタイムライン",
+    "startButton": "ゲーム開始",
+    "settingsButton": "設定"
+  },
+  "characterSelect": {
+    "title": "キャラクターセレクト",
+    "player1Header": "プレイヤー1",
+    "characterLabel": "キャラクター:",
+    "characterPlaceholder": "-- キャラクターを選択 --",
+    "genderLabel": "性別:",
+    "genderPlaceholder": "-- 性別を選択 --",
+    "typeLabel": "性格:",
+    "typePlaceholder": "-- 性格を選択 --",
+    "controlLabel": "操作:",
+    "controlPlayer": "プレイヤー",
+    "controlCpuWeak": "CPU（弱）",
+    "controlCpuMedium": "CPU（中）",
+    "controlCpuStrong": "CPU（強）",
+    "autoNameLabel": "自動設定されたキャラクター名:",
+    "randomButton": "ランダム設定",
+    "player2Header": "プレイヤー2",
+    "startBattleButton": "バトル開始"
+  },
+  "battle": {
+    "startButton": "バトル開始",
+    "returnButton": "キャラクターセレクトに戻る",
+    "statusLabels": {
+      "state": "状態:",
+      "sidestep": "SS CD:",
+      "holdCounter": "HC CD:",
+      "trauma": "Trauma:"
+    },
+    "techListTitle": "技一覧",
+    "techTableHeaders": {
+      "name": "技名",
+      "damage": "ダメージ",
+      "description": "説明",
+      "downState": "ダウン状態"
+    },
+    "logSectionTitle": "バトルログ操作",
+    "copyLogButton": "バトルログをコピー",
+    "templateCopyTitle": "定型文コピー",
+    "templateCopy1": "定型文1をコピー",
+    "templateCopy2": "定型文2をコピー",
+    "templateCopy3": "定型文3をコピー",
+    "commands": {
+      "Grab": "Grab",
+      "Hold": "Hold",
+      "Sidestep": "Sidestep",
+      "Hold Counter": "Hold Counter",
+      "Guard": "Guard"
+    }
+  },
+  "settings": {
+    "title": "設定",
+    "techDataLabel": "技データ(JSON)",
+    "techImport": "技データインポート",
+    "characterDataLabel": "キャラクターデータ(JSON)",
+    "characterImport": "キャラデータインポート",
+    "delayLabel": "技表示間隔(ms)",
+    "saveDelay": "保存",
+    "deleteDb": "DB削除",
+    "backToTitle": "タイトルに戻る"
+  },
+  "alerts": {
+    "battleLogCopied": "バトルログをコピーしました！",
+    "templateCopied": "定型文{{id}}をコピーしました！",
+    "techSaved": "技データを保存しました",
+    "jsonError": "JSONの解析に失敗しました",
+    "characterSaved": "キャラクターデータを保存しました",
+    "delaySaved": "間隔を保存しました",
+    "dbDeleted": "データベースを削除しました"
+  },
+  "logs": {
+    "battleStart": "{{p1}}と{{p2}}の戦闘開始",
+    "battleEnd": "戦闘終了",
+    "commandLog": "{{p1}}: {{p1Command}} / {{p2}}: {{p2Command}}",
+    "simultaneous": "相打ち",
+    "chaseFail": "追撃失敗",
+    "holdCounterActive": "ホールド返し中",
+    "techUsed": "{{attacker}}の{{techName}}! {{description}}",
+    "holdCounterSuccess": "{{attacker}}のHold Counter成功！{{defender}}にTrauma付与",
+    "hpLog": "{{name}}のHP: {{hp}}"
+  },
+  "copyHeader": "次のシーンを1つずつ書いてください。最初の5つを書いてください。",
+  "templateTexts": {
+    "template1": "・攻撃側の部位状態には感触を、モーションはどこをどうするかを記載し、受け手側のモーションには苦痛に悶え喘ぐ様を追加してください。 ・全てのワームは人間を襲う種族で恐怖を感じず、丈夫なため余程のことがない限りは呼吸困難や意識を失ったり、完全に壊死することはありません。また、敗北を認めません。 ダメージを受ける側のモーションは、両手で腹を押さえる、膝をつく、など、ダメージを受けた後の体の動作を書いてください。・察させる際は攻撃部位に触れさせてください。・双方のワームの性別と性格を考慮してください。性格は最後まで変わりません。01から05まで書き直して下さい。",
+    "template2": "・攻撃側の部位状態には感触を、モーションはどこをどうするかを記載し、受け手側のモーションには苦痛に悶え喘ぐ様を追加してください。 ・全てのワームは人間を襲う種族で恐怖を感じず、丈夫なため余程のことがない限りは呼吸困難や意識を失ったり、完全に壊死することはありません。また、敗北を認めません。 ダメージを受ける側のモーションは、両手で腹を押さえる、膝をつく、など、ダメージを受けた後の体の動作を書いてください。・双方は仲間です。・双方のワームの性別と性格と関係性を考慮してください。性格は最後まで変わりません。01から05まで書き直して下さい。",
+    "template3": "別ファイルにして続けてください。"
+  }
+}
