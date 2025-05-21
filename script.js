@@ -385,8 +385,10 @@ class BattleSystem {
     async startBattle() {
         const p1Input = document.getElementById('player1Name');
         const p2Input = document.getElementById('player2Name');
-        const p1Name = p1Input ? p1Input.value : (localStorage.getItem('p1Name') || 'Player 1');
-        const p2Name = p2Input ? p2Input.value : (localStorage.getItem('p2Name') || 'Player 2');
+        const storedP1 = await getData('p1Name');
+        const storedP2 = await getData('p2Name');
+        const p1Name = p1Input ? p1Input.value : (storedP1 || 'Player 1');
+        const p2Name = p2Input ? p2Input.value : (storedP2 || 'Player 2');
 
         const span1 = document.getElementById('battlePlayer1');
         const span2 = document.getElementById('battlePlayer2');
@@ -646,11 +648,11 @@ function goToSettings() {
     location.href = 'settings.html';
 }
 
-function startBattleFromSelect() {
+async function startBattleFromSelect() {
     const p1Name = document.getElementById('player1Name').value || 'Player 1';
     const p2Name = document.getElementById('player2Name').value || 'Player 2';
-    localStorage.setItem('p1Name', p1Name);
-    localStorage.setItem('p2Name', p2Name);
+    await setData('p1Name', p1Name);
+    await setData('p2Name', p2Name);
     location.href = 'battle.html';
 }
 
@@ -658,11 +660,13 @@ function backToSelect() {
     location.href = 'characterSelect.html';
 }
 
-function loadBattleNames() {
+async function loadBattleNames() {
     const span1 = document.getElementById('battlePlayer1');
     const span2 = document.getElementById('battlePlayer2');
-    if (span1) span1.textContent = localStorage.getItem('p1Name') || 'Player 1';
-    if (span2) span2.textContent = localStorage.getItem('p2Name') || 'Player 2';
+    const p1 = await getData('p1Name');
+    const p2 = await getData('p2Name');
+    if (span1) span1.textContent = p1 || 'Player 1';
+    if (span2) span2.textContent = p2 || 'Player 2';
 }
 
 loadBattleNames();
