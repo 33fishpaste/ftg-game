@@ -253,6 +253,22 @@ const battleSystem = new BattleSystem();
 function startBattle() {
     battleSystem.startBattle();
 }
+
+function decodeBase64Image(base64) {
+    try {
+        const binary = atob(base64);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'image/png' });
+        return URL.createObjectURL(blob);
+    } catch (e) {
+        console.error('Failed to decode base64 image', e);
+        return '';
+    }
+}
 function updatePlayerInfo(playerId) {
     const characterSelect = document.getElementById(`${playerId}CharacterSelect`);
     const genderSelect = document.getElementById(`${playerId}GenderSelect`);
@@ -269,8 +285,13 @@ function updatePlayerInfo(playerId) {
         playerNameInput.value = `${characterName} (${gender}/${type})`;
         const info = CHARACTER_DATA?.['種族']?.[characterName];
         if (info && info['画像'] && info['画像']['ポートレート']) {
-            imageElement.src = info['画像']['ポートレート'];
-            imageElement.style.display = 'block';
+            const url = decodeBase64Image(info['画像']['ポートレート']);
+            if (url) {
+                imageElement.src = url;
+                imageElement.style.display = 'block';
+            } else {
+                imageElement.style.display = 'none';
+            }
         } else {
             imageElement.style.display = 'none';
         }
