@@ -53,6 +53,8 @@ let TECHNIQUES = {};
 
 const DEFAULT_DELAY = 500;
 let OUTPUT_DELAY = DEFAULT_DELAY;
+const DEFAULT_WEAK_RATE = 30;
+let CPU_WEAK_RATE = DEFAULT_WEAK_RATE;
 
 const DB_NAME = 'ftg-game';
 const STORE_NAME = 'data';
@@ -378,24 +380,45 @@ class BattleSystem {
         return list;
     }
 
-    chooseAICommand(player, opponentCommand = null) {
+    chooseAICommand(player, opponent = null) {
         if (player.hp <= 0) return null;
         const choices = this.getAvailableCommands(player);
         if (choices.length === 0) return null;
 
-        if (player.control === 'cpu-weak') {
-            const basic = choices.filter(c => c === Commands.GRAB || c === Commands.GUARD);
-            const pool = basic.length > 0 ? basic : choices;
-            return pool[Math.floor(Math.random() * pool.length)];
+        const oppCmd = opponent ? opponent.command : null;
+
+        if (player.control === "cpu-weak") {
+            if (oppCmd && Math.random() < CPU_WEAK_RATE / 100) {
+                const loseChoices = choices.filter(c => this.outcome(c, oppCmd) === "lose");
+                if (loseChoices.length > 0) {
+                    return loseChoices[Math.floor(Math.random() * loseChoices.length)];
+                }
+            }
+            return choices[Math.floor(Math.random() * choices.length)];
         }
 
-        if (player.control === 'cpu-strong' && opponentCommand) {
-            const wins = choices.filter(c => this.outcome(c, opponentCommand) === 'win');
-            if (wins.length > 0) return wins[Math.floor(Math.random() * wins.length)];
+        if (player.control === "cpu-strong") {
+            let pool = [...choices];
+            if (opponent) {
+                if (opponent.trauma > 0) {
+                    pool = pool.filter(c => c !== Commands.HOLD_COUNTER);
+                }
+                if (opponent.sidestep_cd > 0) {
+                    const limited = pool.filter(c => c === Commands.HOLD || c === Commands.SIDESTEP);
+                    if (limited.length > 0) pool = limited;
+                }
+            }
+            if (pool.length === 0) pool = choices;
+            if (oppCmd) {
+                const wins = pool.filter(c => this.outcome(c, oppCmd) === "win");
+                if (wins.length > 0) return wins[Math.floor(Math.random() * wins.length)];
+            }
+            return pool[Math.floor(Math.random() * pool.length)];
         }
 
         return choices[Math.floor(Math.random() * choices.length)];
     }
+
 
     waitForPlayerCommand(player, prefix) {
         return new Promise(resolve => {
@@ -537,13 +560,13 @@ class BattleSystem {
             ]);
         } else if (p1.control === 'player') {
             await this.waitForPlayerCommand(p1, 'p1');
-            p2.command = this.chooseAICommand(p2, p1.command);
+            p2.command = this.chooseAICommand(p2, p1);
         } else if (p2.control === 'player') {
             await this.waitForPlayerCommand(p2, 'p2');
-            p1.command = this.chooseAICommand(p1, p2.command);
+            p1.command = this.chooseAICommand(p1, p2);
         } else {
-            p1.command = this.chooseAICommand(p1);
-            p2.command = this.chooseAICommand(p2);
+            p1.command = this.chooseAICommand(p1, p2);
+            p2.command = this.chooseAICommand(p2, p1);
         }
 
         this.refreshPlayerUI(p1, 'p1');
@@ -861,6 +884,13 @@ async function loadData() {
     }
     const delayInput = document.getElementById('delayInput');
     if (delayInput) delayInput.value = OUTPUT_DELAY;
+
+    const weakRateVal = await getData("cpuWeakRate");
+    if (weakRateVal !== null) {
+        CPU_WEAK_RATE = weakRateVal;
+    }
+    const weakInput = document.getElementById("cpuWeakRateInput");
+    if (weakInput) weakInput.value = CPU_WEAK_RATE;
 }
 
 async function importTechniques() {
@@ -893,6 +923,15 @@ async function saveDelay() {
     if (battleSystem) battleSystem.delay = val;
     await setData('outputDelay', val);
     alert('間隔を保存しました');
+}
+
+async function saveCpuWeakRate() {
+    const input = document.getElementById("cpuWeakRateInput");
+    if (!input) return;
+    const val = parseInt(input.value, 10);
+    CPU_WEAK_RATE = isNaN(val) ? DEFAULT_WEAK_RATE : val;
+    await setData("cpuWeakRate", CPU_WEAK_RATE);
+    alert("CPU弱の不利選択率を保存しました");
 }
 
 async function deleteDatabase() {
