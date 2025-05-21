@@ -27,6 +27,14 @@
                     <option value="">-- 性格を選択 --</option>
                 </select>
 
+                <label for="player1Control">操作:</label>
+                <select id="player1Control">
+                    <option value="player">プレイヤー</option>
+                    <option value="cpu-weak">CPU（弱）</option>
+                    <option value="cpu-medium" selected>CPU（中）</option>
+                    <option value="cpu-strong">CPU（強）</option>
+                </select>
+
                 <label for="player1Name">自動設定されたキャラクター名:</label>
                 <input type="text" id="player1Name" readonly style="background-color: #e9e9e9;">
                 <div id="player1CharacterInfo">
@@ -51,6 +59,14 @@
                 <label for="player2TypeSelect">性格:</label>
                 <select id="player2TypeSelect" onchange="updatePlayerInfo('player2')">
                     <option value="">-- 性格を選択 --</option>
+                </select>
+
+                <label for="player2Control">操作:</label>
+                <select id="player2Control">
+                    <option value="player">プレイヤー</option>
+                    <option value="cpu-weak">CPU（弱）</option>
+                    <option value="cpu-medium" selected>CPU（中）</option>
+                    <option value="cpu-strong">CPU（強）</option>
                 </select>
 
                 <label for="player2Name">自動設定されたキャラクター名:</label>

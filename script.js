@@ -1,5 +1,5 @@
 class PlayerState {
-    constructor(name, character) {
+    constructor(name, character, control = 'cpu-medium') {
         this.name = name;
         this.character = character;
         this.hp = 100;
@@ -13,6 +13,7 @@ class PlayerState {
         this.locked = false;
         this.state = '立ち';
         this.downTechnique = null;
+        this.control = control; // 'player', 'cpu-weak', 'cpu-medium', 'cpu-strong'
     }
 }
 
@@ -33,6 +34,20 @@ const DOWN_COMMANDS = [
     'ホールド(頭側)', 'ホールド(脚側)',
     '反転'
 ];
+
+const DOWN_PREFIX_MAP = {
+    '弱パンチ': '弱パンチ',
+    '強パンチ': '強パンチ',
+    '弱キック': '弱キック',
+    '強キック': '強キック',
+    '弱特殊': '弱特殊技',
+    '強特殊': '強特殊技',
+    '掴み(頭側)': '掴み技_頭側',
+    '掴み(脚側)': '掴み技_脚側',
+    'ホールド(頭側)': 'ホールド技_頭側',
+    'ホールド(脚側)': 'ホールド技_脚側',
+    '反転': '反転'
+};
 
 let TECHNIQUES = {};
 
@@ -131,10 +146,12 @@ class BattleSystem {
         if (tr) tr.textContent = player.trauma;
         if (st) st.textContent = player.state;
         const buttons = document.querySelectorAll(`#${prefix}Commands button`);
+        const opponent = prefix === 'p1' ? this.p2 : this.p1;
+        const oppDown = opponent && (opponent.state === '仰向け' || opponent.state === 'うつ伏せ');
         buttons.forEach(btn => {
             btn.classList.remove('selected', 'disabled');
             const cmd = btn.dataset.cmd;
-            if (player.locked || !this.getAvailableCommands(player).includes(cmd)) {
+            if (player.locked || !this.getAvailableCommands(player).includes(cmd) || oppDown) {
                 btn.classList.add('disabled');
             }
             if (player.command === cmd) {
@@ -143,7 +160,6 @@ class BattleSystem {
         });
 
         if (this.p1 && this.p2) {
-            const opponent = prefix === 'p1' ? this.p2 : this.p1;
             this.refreshDownButtons(player, prefix, opponent);
         }
     }
@@ -152,7 +168,7 @@ class BattleSystem {
         const container = document.getElementById(`${prefix}DownCommands`);
         if (!container) return;
         const buttons = container.querySelectorAll('button');
-        const down = opponent && opponent.hp <= 0 && (opponent.state === '仰向け' || opponent.state === 'うつ伏せ');
+        const down = opponent && (opponent.state === '仰向け' || opponent.state === 'うつ伏せ');
         buttons.forEach(btn => {
             btn.classList.remove('selected', 'disabled');
             if (!down) {
@@ -246,7 +262,13 @@ class BattleSystem {
         this.refreshPlayerUI(att, attPrefix);
     }
 
-    randomDownTechnique(state, includeHold = false) {
+    randomDownTechnique(state, includeHold = false, choice = null) {
+        if (choice) {
+            const mid = DOWN_PREFIX_MAP[choice];
+            if (!mid) return null;
+            const prefix = `相手${state}ダウン中_${mid}`;
+            return this.randomTechnique(prefix);
+        }
         let prefixes = [];
         if (state === '仰向け') {
             prefixes = [
@@ -288,6 +310,20 @@ class BattleSystem {
 
     async followUpDown(att, def, attPrefix, defPrefix, includeHold = false) {
         if (!(def.state === '仰向け' || def.state === 'うつ伏せ')) return;
+
+        if (att.control === 'player') {
+            this.refreshPlayerUI(att, attPrefix);
+            const choice = await this.waitForDownCommand(att, attPrefix);
+            const tech = this.randomDownTechnique(def.state, includeHold, choice);
+            await this.applyTechnique(att, def, tech, attPrefix, defPrefix);
+            if (def.hp > 0 && !includeHold) {
+                def.state = '立ち';
+                this.refreshPlayerUI(def, defPrefix);
+            }
+            att.downTechnique = null;
+            this.refreshPlayerUI(att, attPrefix);
+            return;
+        }
 
         if (def.hp > 0 && !includeHold) {
             const probs = [0.75, 0.5, 0.25, 0];
@@ -342,10 +378,55 @@ class BattleSystem {
         return list;
     }
 
-    chooseCommand(player) {
+    chooseAICommand(player, opponentCommand = null) {
         if (player.hp <= 0) return null;
         const choices = this.getAvailableCommands(player);
+        if (choices.length === 0) return null;
+
+        if (player.control === 'cpu-weak') {
+            const basic = choices.filter(c => c === Commands.GRAB || c === Commands.GUARD);
+            const pool = basic.length > 0 ? basic : choices;
+            return pool[Math.floor(Math.random() * pool.length)];
+        }
+
+        if (player.control === 'cpu-strong' && opponentCommand) {
+            const wins = choices.filter(c => this.outcome(c, opponentCommand) === 'win');
+            if (wins.length > 0) return wins[Math.floor(Math.random() * wins.length)];
+        }
+
         return choices[Math.floor(Math.random() * choices.length)];
+    }
+
+    waitForPlayerCommand(player, prefix) {
+        return new Promise(resolve => {
+            const container = document.getElementById(`${prefix}Commands`);
+            const handler = (e) => {
+                const cmd = e.target.dataset.cmd;
+                if (!cmd) return;
+                if (e.target.classList.contains('disabled')) return;
+                player.command = cmd;
+                container.removeEventListener('click', handler);
+                this.refreshPlayerUI(player, prefix);
+                resolve();
+            };
+            container.addEventListener('click', handler);
+        });
+    }
+
+    waitForDownCommand(player, prefix) {
+        return new Promise(resolve => {
+            const container = document.getElementById(`${prefix}DownCommands`);
+            const handler = (e) => {
+                const cmd = e.target.dataset.down;
+                if (!cmd) return;
+                if (e.target.classList.contains('disabled')) return;
+                player.downTechnique = cmd;
+                container.removeEventListener('click', handler);
+                this.refreshPlayerUI(player, prefix);
+                resolve(cmd);
+            };
+            container.addEventListener('click', handler);
+        });
     }
 
     outcome(cmdA, cmdB) {
@@ -385,20 +466,21 @@ class BattleSystem {
     async startBattle() {
         const p1Input = document.getElementById('player1Name');
         const p2Input = document.getElementById('player2Name');
+        const c1Input = document.getElementById('player1Control');
+        const c2Input = document.getElementById('player2Control');
         const storedP1 = await getData('p1Name');
         const storedP2 = await getData('p2Name');
+        const storedC1 = await getData('p1Control');
+        const storedC2 = await getData('p2Control');
         const p1Name = p1Input ? p1Input.value : (storedP1 || 'Player 1');
         const p2Name = p2Input ? p2Input.value : (storedP2 || 'Player 2');
+        const p1Control = c1Input ? c1Input.value : (storedC1 || 'cpu-medium');
+        const p2Control = c2Input ? c2Input.value : (storedC2 || 'cpu-medium');
 
         const span1 = document.getElementById('battlePlayer1');
         const span2 = document.getElementById('battlePlayer2');
         if (span1) span1.textContent = p1Name;
         if (span2) span2.textContent = p2Name;
-
-        this.createCommandButtons('p1Commands');
-        this.createCommandButtons('p2Commands');
-        this.createDownButtons('p1DownCommands');
-        this.createDownButtons('p2DownCommands');
 
         document.getElementById('battleLog').value = '';
         this.logCounter = 1;
@@ -407,11 +489,16 @@ class BattleSystem {
 
         const p1Char = p1Name.split(' ')[0];
         const p2Char = p2Name.split(' ')[0];
-        const p1 = new PlayerState(p1Name, p1Char);
-        const p2 = new PlayerState(p2Name, p2Char);
+        const p1 = new PlayerState(p1Name, p1Char, p1Control);
+        const p2 = new PlayerState(p2Name, p2Char, p2Control);
 
         this.p1 = p1;
         this.p2 = p2;
+
+        this.createCommandButtons('p1Commands');
+        this.createCommandButtons('p2Commands');
+        this.createDownButtons('p1DownCommands');
+        this.createDownButtons('p2DownCommands');
 
         this.addLog(`${p1.name}と${p2.name}の戦闘開始`);
         this.refreshPlayerUI(p1, 'p1');
@@ -443,8 +530,21 @@ class BattleSystem {
             return;
         }
 
-        p1.command = this.chooseCommand(p1);
-        p2.command = this.chooseCommand(p2);
+        if (p1.control === 'player' && p2.control === 'player') {
+            await Promise.all([
+                this.waitForPlayerCommand(p1, 'p1'),
+                this.waitForPlayerCommand(p2, 'p2')
+            ]);
+        } else if (p1.control === 'player') {
+            await this.waitForPlayerCommand(p1, 'p1');
+            p2.command = this.chooseAICommand(p2, p1.command);
+        } else if (p2.control === 'player') {
+            await this.waitForPlayerCommand(p2, 'p2');
+            p1.command = this.chooseAICommand(p1, p2.command);
+        } else {
+            p1.command = this.chooseAICommand(p1);
+            p2.command = this.chooseAICommand(p2);
+        }
 
         this.refreshPlayerUI(p1, 'p1');
         this.refreshPlayerUI(p2, 'p2');
@@ -651,8 +751,12 @@ function goToSettings() {
 async function startBattleFromSelect() {
     const p1Name = document.getElementById('player1Name').value || 'Player 1';
     const p2Name = document.getElementById('player2Name').value || 'Player 2';
+    const p1Control = document.getElementById('player1Control').value || 'cpu-medium';
+    const p2Control = document.getElementById('player2Control').value || 'cpu-medium';
     await setData('p1Name', p1Name);
     await setData('p2Name', p2Name);
+    await setData('p1Control', p1Control);
+    await setData('p2Control', p2Control);
     location.href = 'battle.html';
 }
 
