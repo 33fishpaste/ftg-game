@@ -84,6 +84,18 @@ button:hover {
 .command-buttons button.disabled {
     background-color: gray;
 }
+
+.down-command-buttons button {
+    margin: 2px;
+}
+
+.down-command-buttons button.selected {
+    background-color: orange;
+}
+
+.down-command-buttons button.disabled {
+    background-color: gray;
+}
 				.character-container {
     display: flex;
     justify-content: space-between;
