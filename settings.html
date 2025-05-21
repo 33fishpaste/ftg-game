@@ -23,6 +23,11 @@
             <input id="delayInput" type="number" min="0">
             <button onclick="saveDelay()">保存</button>
         </div>
+        <div class="input-section">
+            <label for="weakLoseInput">弱CPU失敗率(%)</label>
+            <input id="weakLoseInput" type="number" min="0" max="100">
+            <button onclick="saveWeakLosePercent()">保存</button>
+        </div>
         <button onclick="deleteDatabase()">DB削除</button>
         <button onclick="backToTitle()">タイトルに戻る</button>
     </div>

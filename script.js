@@ -1,5 +1,5 @@
 class PlayerState {
-    constructor(name, character) {
+    constructor(name, character, control = 'cpu-medium') {
         this.name = name;
         this.character = character;
         this.hp = 100;
@@ -13,6 +13,7 @@ class PlayerState {
         this.locked = false;
         this.state = '立ち';
         this.downTechnique = null;
+        this.control = control; // 'player', 'cpu-weak', 'cpu-medium', 'cpu-strong'
     }
 }
 
@@ -38,6 +39,7 @@ let TECHNIQUES = {};
 
 const DEFAULT_DELAY = 500;
 let OUTPUT_DELAY = DEFAULT_DELAY;
+let WEAK_LOSE_PERCENT = 30; // cpu-weakがわざと負ける確率
 
 const DB_NAME = 'ftg-game';
 const STORE_NAME = 'data';
@@ -342,10 +344,53 @@ class BattleSystem {
         return list;
     }
 
-    chooseCommand(player) {
+    chooseAICommand(player, opponent = null) {
         if (player.hp <= 0) return null;
-        const choices = this.getAvailableCommands(player);
+        let choices = this.getAvailableCommands(player);
+        if (choices.length === 0) return null;
+
+        if (player.control === 'cpu-weak') {
+            if (opponent && opponent.command && Math.random() < WEAK_LOSE_PERCENT / 100) {
+                const losing = choices.filter(c => this.outcome(c, opponent.command) === 'lose');
+                if (losing.length > 0) return losing[Math.floor(Math.random() * losing.length)];
+            }
+            return choices[Math.floor(Math.random() * choices.length)];
+        }
+
+        if (player.control === 'cpu-strong') {
+            if (opponent) {
+                if (opponent.trauma > 0) {
+                    choices = choices.filter(c => c !== Commands.HOLD_COUNTER);
+                }
+                if (opponent.sidestep_cd > 0) {
+                    const preferred = [Commands.HOLD, Commands.SIDESTEP].filter(c => choices.includes(c));
+                    if (preferred.length > 0) choices = preferred;
+                }
+                if (opponent.command) {
+                    const wins = choices.filter(c => this.outcome(c, opponent.command) === 'win');
+                    if (wins.length > 0) choices = wins;
+                }
+            }
+            return choices[Math.floor(Math.random() * choices.length)];
+        }
+
         return choices[Math.floor(Math.random() * choices.length)];
+    }
+
+    waitForPlayerCommand(player, prefix) {
+        return new Promise(resolve => {
+            const container = document.getElementById(`${prefix}Commands`);
+            const handler = (e) => {
+                const cmd = e.target.dataset.cmd;
+                if (!cmd) return;
+                if (e.target.classList.contains('disabled')) return;
+                player.command = cmd;
+                container.removeEventListener('click', handler);
+                this.refreshPlayerUI(player, prefix);
+                resolve();
+            };
+            container.addEventListener('click', handler);
+        });
     }
 
     outcome(cmdA, cmdB) {
@@ -385,20 +430,21 @@ class BattleSystem {
     async startBattle() {
         const p1Input = document.getElementById('player1Name');
         const p2Input = document.getElementById('player2Name');
+        const c1Input = document.getElementById('player1Control');
+        const c2Input = document.getElementById('player2Control');
         const storedP1 = await getData('p1Name');
         const storedP2 = await getData('p2Name');
+        const storedC1 = await getData('p1Control');
+        const storedC2 = await getData('p2Control');
         const p1Name = p1Input ? p1Input.value : (storedP1 || 'Player 1');
         const p2Name = p2Input ? p2Input.value : (storedP2 || 'Player 2');
+        const p1Control = c1Input ? c1Input.value : (storedC1 || 'cpu-medium');
+        const p2Control = c2Input ? c2Input.value : (storedC2 || 'cpu-medium');
 
         const span1 = document.getElementById('battlePlayer1');
         const span2 = document.getElementById('battlePlayer2');
         if (span1) span1.textContent = p1Name;
         if (span2) span2.textContent = p2Name;
-
-        this.createCommandButtons('p1Commands');
-        this.createCommandButtons('p2Commands');
-        this.createDownButtons('p1DownCommands');
-        this.createDownButtons('p2DownCommands');
 
         document.getElementById('battleLog').value = '';
         this.logCounter = 1;
@@ -407,11 +453,16 @@ class BattleSystem {
 
         const p1Char = p1Name.split(' ')[0];
         const p2Char = p2Name.split(' ')[0];
-        const p1 = new PlayerState(p1Name, p1Char);
-        const p2 = new PlayerState(p2Name, p2Char);
+        const p1 = new PlayerState(p1Name, p1Char, p1Control);
+        const p2 = new PlayerState(p2Name, p2Char, p2Control);
 
         this.p1 = p1;
         this.p2 = p2;
+
+        this.createCommandButtons('p1Commands');
+        this.createCommandButtons('p2Commands');
+        this.createDownButtons('p1DownCommands');
+        this.createDownButtons('p2DownCommands');
 
         this.addLog(`${p1.name}と${p2.name}の戦闘開始`);
         this.refreshPlayerUI(p1, 'p1');
@@ -443,8 +494,21 @@ class BattleSystem {
             return;
         }
 
-        p1.command = this.chooseCommand(p1);
-        p2.command = this.chooseCommand(p2);
+        if (p1.control === 'player' && p2.control === 'player') {
+            await Promise.all([
+                this.waitForPlayerCommand(p1, 'p1'),
+                this.waitForPlayerCommand(p2, 'p2')
+            ]);
+        } else if (p1.control === 'player') {
+            await this.waitForPlayerCommand(p1, 'p1');
+            p2.command = this.chooseAICommand(p2, p1);
+        } else if (p2.control === 'player') {
+            await this.waitForPlayerCommand(p2, 'p2');
+            p1.command = this.chooseAICommand(p1, p2);
+        } else {
+            p1.command = this.chooseAICommand(p1, p2);
+            p2.command = this.chooseAICommand(p2, p1);
+        }
 
         this.refreshPlayerUI(p1, 'p1');
         this.refreshPlayerUI(p2, 'p2');
@@ -651,8 +715,12 @@ function goToSettings() {
 async function startBattleFromSelect() {
     const p1Name = document.getElementById('player1Name').value || 'Player 1';
     const p2Name = document.getElementById('player2Name').value || 'Player 2';
+    const p1Control = document.getElementById('player1Control').value || 'cpu-medium';
+    const p2Control = document.getElementById('player2Control').value || 'cpu-medium';
     await setData('p1Name', p1Name);
     await setData('p2Name', p2Name);
+    await setData('p1Control', p1Control);
+    await setData('p2Control', p2Control);
     location.href = 'battle.html';
 }
 
@@ -757,6 +825,13 @@ async function loadData() {
     }
     const delayInput = document.getElementById('delayInput');
     if (delayInput) delayInput.value = OUTPUT_DELAY;
+
+    const weakVal = await getData('weakLosePercent');
+    if (weakVal !== null) {
+        WEAK_LOSE_PERCENT = weakVal;
+    }
+    const weakInput = document.getElementById('weakLoseInput');
+    if (weakInput) weakInput.value = WEAK_LOSE_PERCENT;
 }
 
 async function importTechniques() {
@@ -789,6 +864,17 @@ async function saveDelay() {
     if (battleSystem) battleSystem.delay = val;
     await setData('outputDelay', val);
     alert('間隔を保存しました');
+}
+
+async function saveWeakLosePercent() {
+    const input = document.getElementById('weakLoseInput');
+    if (!input) return;
+    let val = parseInt(input.value, 10);
+    if (isNaN(val)) val = WEAK_LOSE_PERCENT;
+    val = Math.min(Math.max(val, 0), 100);
+    WEAK_LOSE_PERCENT = val;
+    await setData('weakLosePercent', val);
+    alert('弱CPU失敗率を保存しました');
 }
 
 async function deleteDatabase() {
