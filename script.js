@@ -12,6 +12,7 @@ class PlayerState {
         this.last_command = null;
         this.locked = false;
         this.state = '立ち';
+        this.downTechnique = null;
     }
 }
 
@@ -24,6 +25,14 @@ const Commands = {
 };
 
 const COMMAND_LIST = Object.values(Commands);
+
+const DOWN_COMMANDS = [
+    '弱パンチ', '強パンチ', '弱キック', '強キック',
+    '弱特殊', '強特殊',
+    '掴み(頭側)', '掴み(脚側)',
+    'ホールド(頭側)', 'ホールド(脚側)',
+    '反転'
+];
 
 let TECHNIQUES = {};
 
@@ -93,6 +102,18 @@ class BattleSystem {
         }
     }
 
+    createDownButtons(containerId) {
+        const wrap = document.getElementById(containerId);
+        if (!wrap) return;
+        wrap.innerHTML = '';
+        for (const cmd of DOWN_COMMANDS) {
+            const btn = document.createElement('button');
+            btn.textContent = cmd;
+            btn.dataset.down = cmd;
+            wrap.appendChild(btn);
+        }
+    }
+
     refreshPlayerUI(player, prefix) {
         const hpFill = document.getElementById(`${prefix}HpFill`);
         const hpText = document.getElementById(`${prefix}HpText`);
@@ -117,6 +138,27 @@ class BattleSystem {
                 btn.classList.add('disabled');
             }
             if (player.command === cmd) {
+                btn.classList.add('selected');
+            }
+        });
+
+        if (this.p1 && this.p2) {
+            const opponent = prefix === 'p1' ? this.p2 : this.p1;
+            this.refreshDownButtons(player, prefix, opponent);
+        }
+    }
+
+    refreshDownButtons(player, prefix, opponent) {
+        const container = document.getElementById(`${prefix}DownCommands`);
+        if (!container) return;
+        const buttons = container.querySelectorAll('button');
+        const down = opponent && opponent.hp <= 0 && (opponent.state === '仰向け' || opponent.state === 'うつ伏せ');
+        buttons.forEach(btn => {
+            btn.classList.remove('selected', 'disabled');
+            if (!down) {
+                btn.classList.add('disabled');
+            }
+            if (player.downTechnique === btn.dataset.down && down) {
                 btn.classList.add('selected');
             }
         });
@@ -170,10 +212,28 @@ class BattleSystem {
         return TECHNIQUES[key];
     }
 
+    labelForTech(tech) {
+        const name = tech['技名'] || '';
+        if (name.includes('弱パンチ')) return '弱パンチ';
+        if (name.includes('強パンチ')) return '強パンチ';
+        if (name.includes('弱キック')) return '弱キック';
+        if (name.includes('強キック')) return '強キック';
+        if (name.includes('弱特殊')) return '弱特殊';
+        if (name.includes('強特殊')) return '強特殊';
+        if (name.includes('掴み技') && name.includes('頭側')) return '掴み(頭側)';
+        if (name.includes('掴み技') && name.includes('脚側')) return '掴み(脚側)';
+        if (name.includes('ホールド技') && name.includes('頭側')) return 'ホールド(頭側)';
+        if (name.includes('ホールド技') && name.includes('脚側')) return 'ホールド(脚側)';
+        if (name.includes('反転') || name.includes('ターンオーバー')) return '反転';
+        return null;
+    }
+
     async applyTechnique(att, def, tech, attPrefix, defPrefix) {
         if (!tech) return;
         const dmg = tech['ダメージ'] || 0;
         this.addLog(`${att.name}の${tech['技名']}! ${tech['説明']}`);
+        att.downTechnique = this.labelForTech(tech);
+        this.refreshPlayerUI(att, attPrefix);
         def.state = tech['ダウン状態'] || def.state;
         if (dmg > 0) {
             def.prev_hp = def.hp;
@@ -182,6 +242,8 @@ class BattleSystem {
         this.refreshPlayerUI(def, defPrefix);
         this.refreshPlayerUI(att, attPrefix);
         await this.wait();
+        att.downTechnique = null;
+        this.refreshPlayerUI(att, attPrefix);
     }
 
     randomDownTechnique(state, includeHold = false) {
@@ -200,6 +262,7 @@ class BattleSystem {
             if (includeHold) {
                 prefixes.push('相手仰向けダウン中_ホールド技_頭側');
                 prefixes.push('相手仰向けダウン中_ホールド技_脚側');
+                prefixes.push('相手仰向けダウン中_反転');
             }
         } else if (state === 'うつ伏せ') {
             prefixes = [
@@ -215,6 +278,7 @@ class BattleSystem {
             if (includeHold) {
                 prefixes.push('相手うつ伏せダウン中_ホールド技_頭側');
                 prefixes.push('相手うつ伏せダウン中_ホールド技_脚側');
+                prefixes.push('相手うつ伏せダウン中_反転');
             }
         }
         if (prefixes.length === 0) return null;
@@ -331,6 +395,8 @@ class BattleSystem {
 
         this.createCommandButtons('p1Commands');
         this.createCommandButtons('p2Commands');
+        this.createDownButtons('p1DownCommands');
+        this.createDownButtons('p2DownCommands');
 
         document.getElementById('battleLog').value = '';
         this.logCounter = 1;
