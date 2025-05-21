@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>設定</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>設定</h1>
+        <div class="input-section">
+            <label for="techniqueJson">技データ(JSON)</label>
+            <textarea id="techniqueJson" rows="10" style="width:100%;"></textarea>
+            <button onclick="importTechniques()">技データインポート</button>
+        </div>
+        <div class="input-section">
+            <label for="characterJson">キャラクターデータ(JSON)</label>
+            <textarea id="characterJson" rows="10" style="width:100%;"></textarea>
+            <button onclick="importCharacters()">キャラデータインポート</button>
+        </div>
+        <button onclick="deleteDatabase()">DB削除</button>
+        <button onclick="backToTitle()">タイトルに戻る</button>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
