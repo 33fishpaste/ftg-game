@@ -2,12 +2,15 @@ class PlayerState {
     constructor(name) {
         this.name = name;
         this.hp = 100;
+        this.prev_hp = 100;
         this.command = null;
         this.sidestep_cd = 0;
         this.sidestep_streak = 0;
         this.hold_counter_cd = 0;
         this.trauma = 0;
         this.last_command = null;
+        this.locked = false;
+        this.state = '立ち';
     }
 }
 
@@ -22,6 +25,9 @@ const Commands = {
 const COMMAND_LIST = Object.values(Commands);
 
 let TECHNIQUES = {};
+
+const DEFAULT_DELAY = 500;
+let OUTPUT_DELAY = DEFAULT_DELAY;
 
 const DB_NAME = 'ftg-game';
 const STORE_NAME = 'data';
@@ -71,6 +77,7 @@ function deleteDb() {
 class BattleSystem {
     constructor() {
         this.logCounter = 1;
+        this.delay = OUTPUT_DELAY;
     }
 
     createCommandButtons(containerId) {
@@ -87,24 +94,50 @@ class BattleSystem {
 
     refreshPlayerUI(player, prefix) {
         const hpFill = document.getElementById(`${prefix}HpFill`);
-        if (hpFill) hpFill.style.width = `${Math.max(player.hp,0)}px`;
+        const hpText = document.getElementById(`${prefix}HpText`);
+        if (hpText) hpText.textContent = player.hp;
+        if (hpFill) {
+            const gradient = this.hpGradient(player.prev_hp, player.hp);
+            hpFill.style.background = gradient;
+        }
         const ss = document.getElementById(`${prefix}SidestepCd`);
         const hc = document.getElementById(`${prefix}HoldCounterCd`);
         const tr = document.getElementById(`${prefix}Trauma`);
+        const st = document.getElementById(`${prefix}State`);
         if (ss) ss.textContent = player.sidestep_cd;
         if (hc) hc.textContent = player.hold_counter_cd;
         if (tr) tr.textContent = player.trauma;
+        if (st) st.textContent = player.state;
         const buttons = document.querySelectorAll(`#${prefix}Commands button`);
         buttons.forEach(btn => {
             btn.classList.remove('selected', 'disabled');
             const cmd = btn.dataset.cmd;
-            if (!this.getAvailableCommands(player).includes(cmd)) {
+            if (player.locked || !this.getAvailableCommands(player).includes(cmd)) {
                 btn.classList.add('disabled');
             }
             if (player.command === cmd) {
                 btn.classList.add('selected');
             }
         });
+    }
+
+    hpGradient(oldHp, newHp) {
+        const clamp = v => Math.max(Math.min(v, 100), -100);
+        oldHp = clamp(oldHp);
+        newHp = clamp(newHp);
+        if (newHp >= 0) {
+            const green = newHp;
+            const orange = Math.max(oldHp - newHp, 0);
+            const red = 100 - Math.max(oldHp, 0);
+            return `linear-gradient(to right, green 0%, green ${green}%, orange ${green}%, orange ${green + orange}%, red ${green + orange}%, red 100%)`;
+        } else {
+            const prevNeg = Math.max(-oldHp, 0);
+            const currNeg = Math.max(-newHp, 0);
+            const orange = currNeg - prevNeg + (oldHp > 0 ? oldHp : 0);
+            const black = prevNeg;
+            const red = 100 - orange - black;
+            return `linear-gradient(to right, red 0%, red ${red}%, black ${red}%, black ${red + black}%, orange ${red + black}%, orange ${red + black + orange}%, red ${red + black + orange}%, red 100%)`;
+        }
     }
 
     addLog(message) {
@@ -121,6 +154,11 @@ class BattleSystem {
         if (player.hold_counter_cd > 0) cmds = cmds.filter(c => c !== Commands.HOLD_COUNTER);
         if (player.trauma > 0) cmds = cmds.filter(c => c !== Commands.HOLD);
         return cmds;
+    }
+
+    setLock(player, flag, prefix) {
+        player.locked = flag;
+        this.refreshPlayerUI(player, prefix);
     }
 
     randomTechnique(prefix) {
@@ -221,11 +259,14 @@ class BattleSystem {
         const p1 = new PlayerState(p1Name);
         const p2 = new PlayerState(p2Name);
 
+        this.p1 = p1;
+        this.p2 = p2;
+
         this.addLog(`${p1.name}と${p2.name}の戦闘開始`);
         this.refreshPlayerUI(p1, 'p1');
         this.refreshPlayerUI(p2, 'p2');
 
-        while (p1.hp > 0 && p2.hp > 0) {
+        while (p1.hp > -100 && p2.hp > -100) {
             await this.executeTurn(p1, p2);
         }
 
@@ -236,6 +277,9 @@ class BattleSystem {
     async executeTurn(p1, p2) {
         this.reduceTrauma(p1);
         this.reduceTrauma(p2);
+
+        p1.prev_hp = p1.hp;
+        p2.prev_hp = p2.hp;
 
         p1.command = this.chooseCommand(p1);
         p2.command = this.chooseCommand(p2);
@@ -249,36 +293,10 @@ class BattleSystem {
 
         if (result1 === 'win') {
             const techs = this.determineTechniques(p1.command, p2.command);
-            let damage = 0;
-            for (const t of techs) {
-                damage += t['ダメージ'];
-                this.addLog(`${p1.name}の${t['技名']}! ${t['説明']}`);
-            }
-            if (damage === 0) damage = 10;
-            p2.hp -= damage;
-            if (p1.command === Commands.HOLD_COUNTER && p2.command === Commands.HOLD) {
-                p2.trauma = 3;
-                p1.trauma = 0;
-                this.addLog(`${p1.name}のHold Counter成功！${p2.name}にTrauma付与`);
-            }
-            if (p1.trauma > 0) p1.trauma = Math.max(p1.trauma - 1, 0);
-            this.addLog(`${p2.name}のHP: ${p2.hp}`);
+            await this.performAttack(p1, p2, techs, 'p1', 'p2');
         } else if (result1 === 'lose') {
             const techs = this.determineTechniques(p2.command, p1.command);
-            let damage = 0;
-            for (const t of techs) {
-                damage += t['ダメージ'];
-                this.addLog(`${p2.name}の${t['技名']}! ${t['説明']}`);
-            }
-            if (damage === 0) damage = 10;
-            p1.hp -= damage;
-            if (p2.command === Commands.HOLD_COUNTER && p1.command === Commands.HOLD) {
-                p1.trauma = 3;
-                p2.trauma = 0;
-                this.addLog(`${p2.name}のHold Counter成功！${p1.name}にTrauma付与`);
-            }
-            if (p2.trauma > 0) p2.trauma = Math.max(p2.trauma - 1, 0);
-            this.addLog(`${p1.name}のHP: ${p1.hp}`);
+            await this.performAttack(p2, p1, techs, 'p2', 'p1');
         } else {
             this.addLog('相打ち');
         }
@@ -289,7 +307,52 @@ class BattleSystem {
         this.refreshPlayerUI(p1, 'p1');
         this.refreshPlayerUI(p2, 'p2');
 
-        await new Promise(r => setTimeout(r, 500));
+        await this.wait();
+    }
+
+    async performAttack(att, def, techs, attPrefix, defPrefix) {
+        const isHC = att.command === Commands.HOLD_COUNTER && def.command === Commands.HOLD;
+        if (isHC) {
+            this.addLog('ホールド返し中');
+            this.setLock(def, true, defPrefix);
+            this.refreshPlayerUI(def, defPrefix);
+            await this.wait();
+        }
+        let dealt = false;
+        for (const t of techs) {
+            const dmg = t['ダメージ'] || 0;
+            this.addLog(`${att.name}の${t['技名']}! ${t['説明']}`);
+            def.state = t['ダウン状態'] || def.state;
+            if (dmg > 0) {
+                dealt = true;
+                def.prev_hp = def.hp;
+                def.hp -= dmg;
+            }
+            this.refreshPlayerUI(def, defPrefix);
+            this.refreshPlayerUI(att, attPrefix);
+            await this.wait();
+        }
+        if (!dealt) {
+            def.prev_hp = def.hp;
+            def.hp -= 10;
+            this.refreshPlayerUI(def, defPrefix);
+        }
+        if (isHC) {
+            def.trauma = 3;
+            att.trauma = 0;
+            this.addLog(`${att.name}のHold Counter成功！${def.name}にTrauma付与`);
+            this.setLock(def, false, defPrefix);
+            this.refreshPlayerUI(def, defPrefix);
+            await this.wait();
+        }
+        if (att.trauma > 0) att.trauma = Math.max(att.trauma - 1, 0);
+        this.addLog(`${def.name}のHP: ${def.hp}`);
+        this.refreshPlayerUI(def, defPrefix);
+    }
+
+    wait(ms) {
+        if (ms === undefined) ms = this.delay;
+        return new Promise(r => setTimeout(r, ms));
     }
 }
 
@@ -517,6 +580,14 @@ async function loadData() {
             .then(r => r.json())
             .then(d => { CHARACTER_DATA = d; populateCharacterOptions(); });
     }
+
+    const delayVal = await getData('outputDelay');
+    if (delayVal !== null) {
+        OUTPUT_DELAY = delayVal;
+        if (battleSystem) battleSystem.delay = delayVal;
+    }
+    const delayInput = document.getElementById('delayInput');
+    if (delayInput) delayInput.value = OUTPUT_DELAY;
 }
 
 async function importTechniques() {
@@ -539,6 +610,16 @@ async function importCharacters() {
     } catch (e) {
         alert('JSONの解析に失敗しました');
     }
+}
+
+async function saveDelay() {
+    const input = document.getElementById('delayInput');
+    if (!input) return;
+    const val = parseInt(input.value, 10) || 0;
+    OUTPUT_DELAY = val;
+    if (battleSystem) battleSystem.delay = val;
+    await setData('outputDelay', val);
+    alert('間隔を保存しました');
 }
 
 async function deleteDatabase() {
