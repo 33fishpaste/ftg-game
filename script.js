@@ -372,7 +372,6 @@ class BattleSystem {
             await this.followUpDown(att, def, attPrefix, defPrefix, true);
             this.refreshPlayerUI(att, attPrefix);
             this.refreshPlayerUI(def, defPrefix);
-            await this.wait();
             return;
         }
 
