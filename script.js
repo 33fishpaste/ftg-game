@@ -134,10 +134,10 @@ class BattleSystem {
         } else {
             const prevNeg = Math.max(-oldHp, 0);
             const currNeg = Math.max(-newHp, 0);
-            const orange = currNeg - prevNeg + (oldHp > 0 ? oldHp : 0);
-            const black = prevNeg;
-            const red = 100 - orange - black;
-            return `linear-gradient(to right, red 0%, red ${red}%, black ${red}%, black ${red + black}%, orange ${red + black}%, orange ${red + black + orange}%, red ${red + black + orange}%, red 100%)`;
+            const orange = Math.max(currNeg - prevNeg, 0);
+            const black = currNeg - orange;
+            const red = 100 - currNeg;
+            return `linear-gradient(to right, red 0%, red ${red}%, orange ${red}%, orange ${red + orange}%, black ${red + orange}%, black 100%)`;
         }
     }
 
