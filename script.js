@@ -1,6 +1,7 @@
 class PlayerState {
-    constructor(name) {
+    constructor(name, character) {
         this.name = name;
+        this.character = character;
         this.hp = 100;
         this.prev_hp = 100;
         this.command = null;
@@ -149,6 +150,7 @@ class BattleSystem {
     }
 
     getAvailableCommands(player) {
+        if (player.hp <= 0) return [];
         let cmds = [...COMMAND_LIST];
         if (player.sidestep_cd > 0) cmds = cmds.filter(c => c !== Commands.SIDESTEP);
         if (player.hold_counter_cd > 0) cmds = cmds.filter(c => c !== Commands.HOLD_COUNTER);
@@ -166,6 +168,84 @@ class BattleSystem {
         if (keys.length === 0) return null;
         const key = keys[Math.floor(Math.random() * keys.length)];
         return TECHNIQUES[key];
+    }
+
+    async applyTechnique(att, def, tech, attPrefix, defPrefix) {
+        if (!tech) return;
+        const dmg = tech['ダメージ'] || 0;
+        this.addLog(`${att.name}の${tech['技名']}! ${tech['説明']}`);
+        def.state = tech['ダウン状態'] || def.state;
+        if (dmg > 0) {
+            def.prev_hp = def.hp;
+            def.hp -= dmg;
+        }
+        this.refreshPlayerUI(def, defPrefix);
+        this.refreshPlayerUI(att, attPrefix);
+        await this.wait();
+    }
+
+    randomDownTechnique(state, includeHold = false) {
+        let prefixes = [];
+        if (state === '仰向け') {
+            prefixes = [
+                '相手仰向けダウン中_弱パンチ',
+                '相手仰向けダウン中_強パンチ',
+                '相手仰向けダウン中_弱キック',
+                '相手仰向けダウン中_強キック',
+                '相手仰向けダウン中_弱特殊技',
+                '相手仰向けダウン中_強特殊技',
+                '相手仰向けダウン中_掴み技_頭側',
+                '相手仰向けダウン中_掴み技_脚側'
+            ];
+            if (includeHold) {
+                prefixes.push('相手仰向けダウン中_ホールド技_頭側');
+                prefixes.push('相手仰向けダウン中_ホールド技_脚側');
+            }
+        } else if (state === 'うつ伏せ') {
+            prefixes = [
+                '相手うつ伏せダウン中_弱パンチ',
+                '相手うつ伏せダウン中_強パンチ',
+                '相手うつ伏せダウン中_弱キック',
+                '相手うつ伏せダウン中_強キック',
+                '相手うつ伏せダウン中_弱特殊技',
+                '相手うつ伏せダウン中_強特殊技',
+                '相手うつ伏せダウン中_掴み技_頭側',
+                '相手うつ伏せダウン中_掴み技_脚側'
+            ];
+            if (includeHold) {
+                prefixes.push('相手うつ伏せダウン中_ホールド技_頭側');
+                prefixes.push('相手うつ伏せダウン中_ホールド技_脚側');
+            }
+        }
+        if (prefixes.length === 0) return null;
+        const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+        return this.randomTechnique(prefix);
+    }
+
+    async followUpDown(att, def, attPrefix, defPrefix, includeHold = false) {
+        if (!(def.state === '仰向け' || def.state === 'うつ伏せ')) return;
+
+        if (def.hp > 0 && !includeHold) {
+            const probs = [0.75, 0.5, 0.25, 0];
+            for (let i = 0; i < probs.length; i++) {
+                if (Math.random() >= probs[i]) {
+                    this.addLog('追撃失敗');
+                    if (def.hp > 0) {
+                        def.state = '立ち';
+                        this.refreshPlayerUI(def, defPrefix);
+                    }
+                    break;
+                }
+                const tech = this.randomDownTechnique(def.state, false);
+                await this.applyTechnique(att, def, tech, attPrefix, defPrefix);
+                if (def.hp <= 0) break;
+            }
+        }
+
+        if (def.hp <= 0 || includeHold) {
+            const tech = this.randomDownTechnique(def.state, true);
+            await this.applyTechnique(att, def, tech, attPrefix, defPrefix);
+        }
     }
 
     determineTechniques(attCmd, defCmd) {
@@ -199,6 +279,7 @@ class BattleSystem {
     }
 
     chooseCommand(player) {
+        if (player.hp <= 0) return null;
         const choices = this.getAvailableCommands(player);
         return choices[Math.floor(Math.random() * choices.length)];
     }
@@ -256,8 +337,10 @@ class BattleSystem {
         const backBtn = document.getElementById('returnButton');
         if (backBtn) backBtn.style.display = 'none';
 
-        const p1 = new PlayerState(p1Name);
-        const p2 = new PlayerState(p2Name);
+        const p1Char = p1Name.split(' ')[0];
+        const p2Char = p2Name.split(' ')[0];
+        const p1 = new PlayerState(p1Name, p1Char);
+        const p2 = new PlayerState(p2Name, p2Char);
 
         this.p1 = p1;
         this.p2 = p2;
@@ -280,6 +363,18 @@ class BattleSystem {
 
         p1.prev_hp = p1.hp;
         p2.prev_hp = p2.hp;
+
+        if (p1.hp <= 0 || p2.hp <= 0) {
+            const att = p1.hp > 0 ? p1 : p2;
+            const def = p1.hp > 0 ? p2 : p1;
+            const attPrefix = p1.hp > 0 ? 'p1' : 'p2';
+            const defPrefix = p1.hp > 0 ? 'p2' : 'p1';
+            await this.followUpDown(att, def, attPrefix, defPrefix, true);
+            this.refreshPlayerUI(att, attPrefix);
+            this.refreshPlayerUI(def, defPrefix);
+            await this.wait();
+            return;
+        }
 
         p1.command = this.chooseCommand(p1);
         p2.command = this.chooseCommand(p2);
@@ -348,6 +443,11 @@ class BattleSystem {
         if (att.trauma > 0) att.trauma = Math.max(att.trauma - 1, 0);
         this.addLog(`${def.name}のHP: ${def.hp}`);
         this.refreshPlayerUI(def, defPrefix);
+
+        if (def.hp > -100) {
+            const includeHold = def.hp <= 0;
+            await this.followUpDown(att, def, attPrefix, defPrefix, includeHold);
+        }
     }
 
     wait(ms) {
